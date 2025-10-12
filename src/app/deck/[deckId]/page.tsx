@@ -1,6 +1,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { addPair, importCSVFromForm } from './actions';
+import { renameDeck } from '@/app/actions';
+import DeleteDeckForm from '@/components/DeleteDeckForm';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
@@ -18,6 +20,22 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
 
   return (
     <main className="wrap">
+      <div className="page-header deck-header">
+        <Link href="/" className="back-link">← Packs</Link>
+        <form action={renameDeck} className="deck-title-form">
+          <input type="hidden" name="deckId" value={deck.id} />
+          <input
+            className="deck-title-input"
+            name="name"
+            defaultValue={deck.name}
+            aria-label="Deck title"
+          />
+          <button type="submit" className="chip">Save title</button>
+        </form>
+        <DeleteDeckForm deckId={deck.id} redirectTo="/" className="chip chip--danger">
+          Delete pack
+        </DeleteDeckForm>
+      </div>
       <DeckControls deckId={deck.id} stats={{pairs: deck.pairs.length}} initialNotes={deck.notes}/>
 
       <DeckTable deckId={deck.id} rows={rows} />
