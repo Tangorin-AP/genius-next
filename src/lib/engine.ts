@@ -70,7 +70,7 @@ export async function mark(associationId: string, mark: 'RIGHT'|'WRONG'|'SKIP') 
         firstTime: false,
       }
     });
-    return deckId;
+    return;
   }
   if (mark === 'RIGHT') {
     const base = a.score < 0 ? 0 : a.score;

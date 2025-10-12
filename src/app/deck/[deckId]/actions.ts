@@ -125,8 +125,8 @@ export async function importCSV(deckId: string, csvText: string) {
 
       await tx.association.createMany({
         data: [
-          { pairId: pair.id, direction: 'AB', score: 0, dueAt: new Date() },
-          { pairId: pair.id, direction: 'BA', score: 0, dueAt: new Date() },
+          { pairId: pair.id, direction: 'AB' },
+          { pairId: pair.id, direction: 'BA' },
         ],
       });
     }

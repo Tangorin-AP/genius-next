@@ -12,33 +12,8 @@ type Row = {
   score: number;
 };
 
-type ScoreEvent = CustomEvent<{ pairId: string; score: number }>;
-
-function clampScore(score: number) {
-  if (Number.isNaN(score)) return 0;
-  return Math.max(0, Math.min(10, Math.round(score)));
-}
-
-function scoreToPercent(score: number) {
-  const clamped = clampScore(score);
-  return `${(clamped / 10) * 100}%`;
-}
-
-function scoreToColor(score: number) {
-  const clamped = clampScore(score);
-  const r = Math.round(233 - (clamped / 10) * (233 - 63));
-  const g = Math.round(99 + (clamped / 10) * (181 - 99));
-  const b = Math.round(99 + (clamped / 10) * (115 - 99));
-  return `rgb(${r}, ${g}, ${b})`;
-}
-
 export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[] }) {
   const [query, setQuery] = useState('');
-  const [localRows, setLocalRows] = useState(rows);
-
-  useEffect(() => {
-    setLocalRows(rows);
-  }, [rows]);
 
   useEffect(() => {
     const onSearch = (event: Event) => {
@@ -46,70 +21,47 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
       setQuery(customEvent.detail || '');
     };
 
-    const onScore = (event: Event) => {
-      const { detail } = event as ScoreEvent;
-      if (!detail) return;
-      setLocalRows((prev) =>
-        prev.map((row) =>
-          row.pairId === detail.pairId
-            ? { ...row, score: clampScore(detail.score) }
-            : row,
-        ),
-      );
-    };
-
     window.addEventListener('deck-search', onSearch as EventListener);
-    window.addEventListener('deck-score', onScore as EventListener);
-    return () => {
-      window.removeEventListener('deck-search', onSearch as EventListener);
-      window.removeEventListener('deck-score', onScore as EventListener);
-    };
-  }, []);
-
-  const updateRow = useCallback((pairId: string, patch: Partial<Row>) => {
-    setLocalRows((prev) =>
-      prev.map((row) =>
-        row.pairId === pairId
-          ? { ...row, ...patch }
-          : row,
-      ),
-    );
-  }, []);
-
-  const removeRow = useCallback((pairId: string) => {
-    setLocalRows((prev) => prev.filter((row) => row.pairId !== pairId));
+    return () => window.removeEventListener('deck-search', onSearch as EventListener);
   }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const dataset = localRows;
-    if (!q) return dataset;
-    return dataset.filter(
+    if (!q) return rows;
+    return rows.filter(
       (row) =>
         row.question.toLowerCase().includes(q) ||
         row.answer.toLowerCase().includes(q),
     );
-  }, [localRows, query]);
+  }, [rows, query]);
 
   return (
     <div className="boxed table-scroll">
       <div className="table-grid">
         <div className="header">
-          <div className="th chk" aria-hidden="true" />
+          <div className="th chk" />
           <div className="th qcol">Question</div>
           <div className="th acol">Answer</div>
-          <div className="th scol">Score</div>
+          <div className="th scol">Score(+-)</div>
         </div>
-        {filtered.map((row) => (
-          <RowForm
-            key={row.pairId}
-            deckId={deckId}
-            row={row}
-            onUpdate={updateRow}
-            onRemove={removeRow}
-          />
+        {filtered.map((r)=> (
+          <form key={r.pairId} className="row grid-4" action={saveRow}>
+            <input type="hidden" name="deckId" value={deckId} />
+            <input type="hidden" name="pairId" value={r.pairId} />
+            <input type="hidden" name="associationId" value={r.associationId ?? ''} />
+            <div className="td chk"><input type="checkbox" defaultChecked /></div>
+            <div className="td qcol"><input name="question" type="text" defaultValue={r.question} /></div>
+            <div className="td acol"><input name="answer" type="text" defaultValue={r.answer} /></div>
+            <div className="td scol">
+              <div className="score-inline">
+                <input name="score" type="number" min="-1" max="10" defaultValue={r.score} />
+                <button className="chip" type="submit">Save</button>
+                <button className="chip" type="submit" formAction={deletePair}>Delete</button>
+              </div>
+            </div>
+          </form>
         ))}
-        <div className="table-spacer" />
+        <div className="footer"><div className="spacer" /></div>
       </div>
     </div>
   );
