@@ -14,6 +14,11 @@ type Row = {
 
 export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[] }) {
   const [query, setQuery] = useState('');
+  const [data, setData] = useState<Row[]>(rows);
+
+  useEffect(() => {
+    setData(rows);
+  }, [rows]);
 
   useEffect(() => {
     const onSearch = (event: Event) => {
@@ -25,15 +30,48 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
     return () => window.removeEventListener('deck-search', onSearch as EventListener);
   }, []);
 
+  const handleScoreBroadcast = useCallback((event: Event) => {
+    const custom = event as CustomEvent<{ pairId: string; score: number }>;
+    if (!custom.detail) return;
+    const { pairId, score } = custom.detail;
+    const safeScore = clampScore(score);
+    setData((prev) =>
+      prev.map((row) =>
+        row.pairId === pairId
+          ? { ...row, score: safeScore }
+          : row,
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('deck-score', handleScoreBroadcast as EventListener);
+    return () => window.removeEventListener('deck-score', handleScoreBroadcast as EventListener);
+  }, [handleScoreBroadcast]);
+
+  const updateRow = useCallback((pairId: string, patch: Partial<Row>) => {
+    setData((prev) =>
+      prev.map((row) =>
+        row.pairId === pairId
+          ? { ...row, ...patch }
+          : row,
+      ),
+    );
+  }, []);
+
+  const removeRow = useCallback((pairId: string) => {
+    setData((prev) => prev.filter((row) => row.pairId !== pairId));
+  }, []);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
+    if (!q) return data;
+    return data.filter(
       (row) =>
         row.question.toLowerCase().includes(q) ||
         row.answer.toLowerCase().includes(q),
     );
-  }, [rows, query]);
+  }, [data, query]);
 
   return (
     <div className="boxed table-scroll">
@@ -42,24 +80,16 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
           <div className="th chk" />
           <div className="th qcol">Question</div>
           <div className="th acol">Answer</div>
-          <div className="th scol">Score(+-)</div>
+          <div className="th scol">Score</div>
         </div>
-        {filtered.map((r)=> (
-          <form key={r.pairId} className="row grid-4" action={saveRow}>
-            <input type="hidden" name="deckId" value={deckId} />
-            <input type="hidden" name="pairId" value={r.pairId} />
-            <input type="hidden" name="associationId" value={r.associationId ?? ''} />
-            <div className="td chk"><input type="checkbox" defaultChecked /></div>
-            <div className="td qcol"><input name="question" type="text" defaultValue={r.question} /></div>
-            <div className="td acol"><input name="answer" type="text" defaultValue={r.answer} /></div>
-            <div className="td scol">
-              <div className="score-inline">
-                <input name="score" type="number" min="-1" max="10" defaultValue={r.score} />
-                <button className="chip" type="submit">Save</button>
-                <button className="chip" type="submit" formAction={deletePair}>Delete</button>
-              </div>
-            </div>
-          </form>
+        {filtered.map((row) => (
+          <RowForm
+            key={row.pairId}
+            deckId={deckId}
+            row={row}
+            onUpdate={updateRow}
+            onRemove={removeRow}
+          />
         ))}
         <div className="footer"><div className="spacer" /></div>
       </div>

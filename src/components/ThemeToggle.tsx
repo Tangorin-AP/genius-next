@@ -1,31 +1,34 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useMemo } from 'react';
 import { useTheme } from './ThemeContext';
 
-export default function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
-  const sliderRef = useRef<HTMLInputElement>(null);
+type ThemeToggleProps = {
+  className?: string;
+};
 
-  useEffect(() => {
-    if (sliderRef.current) {
-      sliderRef.current.checked = theme === 'dark';
-    }
-  }, [theme]);
+export default function ThemeToggle({ className }: ThemeToggleProps) {
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === 'dark';
+
+  const label = useMemo(() => (isDark ? 'Dark mode' : 'Light mode'), [isDark]);
 
   return (
-    <label className="theme-toggle" title="Toggle dark / light mode">
+    <label
+      className={[className, 'theme-toggle'].filter(Boolean).join(' ')}
+      data-theme={isDark ? 'dark' : 'light'}
+      title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+    >
       <input
-        ref={sliderRef}
         type="checkbox"
-        aria-label="Toggle dark or light mode"
-        onChange={(event) => setTheme(event.currentTarget.checked ? 'dark' : 'light')}
+        checked={isDark}
+        onChange={() => setTheme(isDark ? 'light' : 'dark')}
+        aria-label="Toggle theme"
       />
-      <span className="track">
-        <span className="thumb" />
-        <span className="mode mode--light">☀️</span>
-        <span className="mode mode--dark">🌙</span>
+      <span className="theme-toggle__slider">
+        <span className="theme-toggle__thumb" />
       </span>
+      <span className="theme-toggle__label">{label}</span>
     </label>
   );
 }
