@@ -29,6 +29,11 @@ async function fetchSelection(deckId: string, params: {m:number;min:number;count
   return res.json();
 }
 
+function broadcastScore(pairId: string, score: number) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('deck-score', { detail: { pairId, score } }));
+}
+
 export default function StudyModal({ deckId }: { deckId: string }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Assoc[]>([]);
@@ -69,6 +74,13 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     const mode = paramsRef.current.mode;
     if (isMatch(current.answer, input, mode)) {
       await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'RIGHT' }) });
+      const newScore = Math.max(0, current.score) + 1;
+      broadcastScore(current.pairId, newScore);
+      setItems((prev) => {
+        const clone = [...prev];
+        if (clone[idx]) clone[idx] = { ...clone[idx], score: newScore };
+        return clone;
+      });
       next();
       return;
     }
@@ -85,9 +97,35 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       setOpen(false);
     }
   }
-  const yes = async () => { await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current?.id, decision: 'RIGHT' }) }); next(); };
-  const no  = async () => { await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current?.id, decision: 'WRONG' }) }); next(); };
-  const skip = async () => { await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current?.id, decision: 'SKIP' }) }); next(); };
+  const yes = async () => {
+    if (!current) return;
+    await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'RIGHT' }) });
+    const newScore = Math.max(0, current.score) + 1;
+    broadcastScore(current.pairId, newScore);
+    setItems((prev) => {
+      const clone = [...prev];
+      if (clone[idx]) clone[idx] = { ...clone[idx], score: newScore };
+      return clone;
+    });
+    next();
+  };
+  const no  = async () => {
+    if (!current) return;
+    await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'WRONG' }) });
+    broadcastScore(current.pairId, 0);
+    setItems((prev) => {
+      const clone = [...prev];
+      if (clone[idx]) clone[idx] = { ...clone[idx], score: 0 };
+      return clone;
+    });
+    next();
+  };
+  const skip = async () => {
+    if (!current) return;
+    await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'SKIP' }) });
+    broadcastScore(current.pairId, Math.max(0, current.score));
+    next();
+  };
 
   return (
     <div className="screen">
@@ -99,7 +137,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
         </div>
         <div className="modal-body">
           <div className="cue">{current?.question ?? '—'}</div>
-          <div className="meta"><span>AB</span> • <span>score {current ? (current.score < 0 ? '—' : current.score) : '—'}</span></div>
+          <div className="meta"><span>{current?.direction ?? 'AB'}</span> • <span>score {current ? (current.score < 0 ? '—' : current.score) : '—'}</span></div>
           <div className="answer-block">
             <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} placeholder="Type your answer…" />
             <div className="btn-row">
