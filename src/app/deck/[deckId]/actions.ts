@@ -1,20 +1,23 @@
-
 'use server';
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 
+/** Add an empty Q/A pair with both directions for a deck */
 export async function addPair(deckId: string) {
-  const p = await prisma.pair.create({ data: { deckId, question: '', answer: '' } });
+  const p = await prisma.pair.create({
+    data: { deckId, question: '', answer: '' }
+  });
   await prisma.association.createMany({
     data: [
-      { pairId: p.id, direction: 'AB', score: 0, dueAt: new Date() },
-      { pairId: p.id, direction: 'BA', score: 0, dueAt: new Date() },
-    ]
+      { pairId: p.id, direction: 'AB' },
+      { pairId: p.id, direction: 'BA' },
+    ],
   });
   revalidatePath(`/deck/${deckId}`);
 }
 
+/** Lightweight CSV/TSV parser that handles quotes and blank lines */
 function parseDelimited(text: string, delimiter: ',' | '\t' = ',') {
   const rows: string[][] = [];
   let current: string[] = [];
@@ -25,15 +28,10 @@ function parseDelimited(text: string, delimiter: ',' | '\t' = ',') {
     current.push(field);
     field = '';
   };
-
   const pushRow = () => {
-    if (current.length === 0) {
-      return;
-    }
-    const normalized = current.map((value) => value.trim());
-    if (normalized.some((value) => value !== '')) {
-      rows.push(normalized);
-    }
+    if (current.length === 0) return;
+    const normalized = current.map((v) => v.trim());
+    if (normalized.some((v) => v !== '')) rows.push(normalized);
     current = [];
   };
 
@@ -78,51 +76,41 @@ function parseCSV(text: string) {
   return parseDelimited(sanitized, delimiter);
 }
 
+/** Import CSV text into a deck (expects columns: question, answer) */
 export async function importCSV(deckId: string, csvText: string) {
   const rows = parseCSV(csvText);
   if (rows.length === 0) return;
 
-  const header = rows[0].map((value) => value.toLowerCase());
+  const header = rows[0].map((v) => v.toLowerCase());
   const questionAliases = ['question', 'prompt', 'front', 'term'];
   const answerAliases = ['answer', 'back', 'definition'];
+
   let dataStartIndex = 0;
   let questionIndex = 0;
   let answerIndex = 1;
 
-  const headerQuestionIndex = header.findIndex((value) => questionAliases.includes(value));
-  const headerAnswerIndex = header.findIndex((value) => answerAliases.includes(value));
-
+  const headerQuestionIndex = header.findIndex((v) => questionAliases.includes(v));
+  const headerAnswerIndex = header.findIndex((v) => answerAliases.includes(v));
   if ((headerQuestionIndex !== -1 || headerAnswerIndex !== -1) && rows.length > 1) {
     dataStartIndex = 1;
-    if (headerQuestionIndex !== -1) {
-      questionIndex = headerQuestionIndex;
-    }
-    if (headerAnswerIndex !== -1) {
-      answerIndex = headerAnswerIndex;
-    }
+    if (headerQuestionIndex !== -1) questionIndex = headerQuestionIndex;
+    if (headerAnswerIndex !== -1) answerIndex = headerAnswerIndex;
   }
 
-  const entries = rows.slice(dataStartIndex).map((row) => {
-    const question = row[questionIndex] ?? '';
-    const answer = row[answerIndex] ?? '';
-    return {
-      question: question.trim(),
-      answer: answer.trim(),
-    };
-  }).filter((entry) => entry.question !== '' || entry.answer !== '');
+  const entries = rows.slice(dataStartIndex)
+    .map((row) => ({
+      question: (row[questionIndex] ?? '').trim(),
+      answer: (row[answerIndex] ?? '').trim(),
+    }))
+    .filter((e) => e.question !== '' || e.answer !== '');
 
   if (entries.length === 0) return;
 
   await prisma.$transaction(async (tx) => {
     for (const entry of entries) {
       const pair = await tx.pair.create({
-        data: {
-          deckId,
-          question: entry.question,
-          answer: entry.answer,
-        },
+        data: { deckId, question: entry.question, answer: entry.answer },
       });
-
       await tx.association.createMany({
         data: [
           { pairId: pair.id, direction: 'AB' },
@@ -137,16 +125,15 @@ export async function importCSV(deckId: string, csvText: string) {
 
 type TextReadable = { text: () => Promise<string> };
 
+/** Action to handle <form> file input directly */
 export async function importCSVFromForm(deckId: string, formData: FormData) {
   const file = formData.get('csv');
-  if (!file || typeof (file as Partial<TextReadable>).text !== 'function') {
-    return;
-  }
-
+  if (!file || typeof (file as Partial<TextReadable>).text !== 'function') return;
   const text = await (file as TextReadable).text();
   await importCSV(deckId, text);
 }
 
+/** Save a row edit (question/answer, and optional score edit) */
 export async function saveRow(formData: FormData) {
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
@@ -154,23 +141,30 @@ export async function saveRow(formData: FormData) {
   const question = String(formData.get('question') ?? '');
   const answer = String(formData.get('answer') ?? '');
   const scoreStr = formData.get('score');
-  const score = (scoreStr === null || scoreStr === undefined || String(scoreStr).trim()==='')
+
+  const score = (scoreStr === null || scoreStr === undefined || String(scoreStr).trim() === '')
     ? null
     : parseInt(String(scoreStr), 10);
 
   if (pairId) {
     await prisma.pair.update({ where: { id: pairId }, data: { question, answer } });
   }
+
   if (associationId && score !== null && !Number.isNaN(score)) {
-    const s = Math.max(0, Math.min(10, score));
+    const s = Math.max(-1, Math.min(10, score));
     await prisma.association.update({
       where: { id: associationId },
-      data: { score: s, dueAt: new Date(Date.now() + Math.pow(5, Math.max(0, s))*1000), firstTime: s === 0 ? false : undefined }
+      data: {
+        score: s,
+        dueAt: s >= 0 ? new Date(Date.now() + Math.pow(5, Math.max(0, s)) * 1000) : null
+      }
     });
   }
+
   if (deckId) revalidatePath(`/deck/${deckId}`);
 }
 
+/** Delete a Q/A pair and its associations */
 export async function deletePair(formData: FormData) {
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
@@ -181,30 +175,9 @@ export async function deletePair(formData: FormData) {
   if (deckId) revalidatePath(`/deck/${deckId}`);
 }
 
-// New: server action specifically for Client Component notes form
+/** Save deck notes from a Client Component modal */
 export async function saveDeckNotesAction(deckId: string, formData: FormData) {
   const notes = String(formData.get('notes') || '');
   await prisma.deck.update({ where: { id: deckId }, data: { notes } });
   revalidatePath(`/deck/${deckId}`);
-}
-
-'use server';
-
-import { prisma } from '@/lib/prisma';
-import { revalidatePath } from 'next/cache';
-
-/** Rename a deck (called from a form in page.tsx) */
-export async function renameDeck(formData: FormData) {
-  const deckId = String(formData.get('deckId') || '');
-  const name = String(formData.get('name') || '').trim();
-  if (!deckId) return;
-
-  await prisma.deck.update({
-    where: { id: deckId },
-    data: { name },
-  });
-
-  // refresh both the deck page and the list page
-  revalidatePath(`/deck/${deckId}`);
-  revalidatePath(`/`);
 }
