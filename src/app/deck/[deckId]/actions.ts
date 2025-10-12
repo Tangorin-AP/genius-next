@@ -1,4 +1,5 @@
 
+// 'use server'
 'use server';
 
 import { prisma } from '@/lib/prisma';
@@ -23,6 +24,31 @@ export async function setScore(associationId: string, score: number) {
   await prisma.association.update({ where: { id: associationId }, data: { score, dueAt: score>=0 ? new Date(Date.now() + Math.pow(5, Math.max(0, score))*1000) : null } });
 }
 
+// New: saveRow — server-action form handler (no client event handlers needed)
+export async function saveRow(formData: FormData) {
+  const deckId = String(formData.get('deckId') ?? '');
+  const pairId = String(formData.get('pairId') ?? '');
+  const associationId = String(formData.get('associationId') ?? '');
+  const question = String(formData.get('question') ?? '');
+  const answer = String(formData.get('answer') ?? '');
+  const scoreStr = formData.get('score');
+  const score = (scoreStr === null || scoreStr === undefined || String(scoreStr).trim()==='')
+    ? null
+    : parseInt(String(scoreStr), 10);
+
+  if (pairId) {
+    await prisma.pair.update({ where: { id: pairId }, data: { question, answer } });
+  }
+  if (associationId && score !== null && !Number.isNaN(score)) {
+    const s = Math.max(-1, Math.min(10, score));
+    await prisma.association.update({
+      where: { id: associationId },
+      data: { score: s, dueAt: s >= 0 ? new Date(Date.now() + Math.pow(5, Math.max(0, s))*1000) : null }
+    });
+  }
+  if (deckId) revalidatePath(`/deck/${deckId}`);
+}
+
 export async function importCSV(deckId: string, csv: string) {
   const lines = csv.split(/\r?\n/).filter(Boolean);
   for (const line of lines) {
@@ -31,6 +57,7 @@ export async function importCSV(deckId: string, csv: string) {
     const p = await prisma.pair.create({ data: { deckId, question: q.trim(), answer: a } });
     await prisma.association.createMany({ data: [{ pairId: p.id, direction: 'AB' }, { pairId: p.id, direction: 'BA' }] });
   }
+  revalidatePath(`/deck/${deckId}`);
 }
 
 export async function exportJSON(deckId: string) {

@@ -1,6 +1,6 @@
 
 import { prisma } from '@/lib/prisma';
-import { addPair, importCSV, exportJSON, setScore, updatePair } from './actions';
+import { addPair, importCSV, exportJSON, saveRow } from './actions';
 import StudyModal from '@/components/StudyModal';
 import { Suspense } from 'react';
 
@@ -28,22 +28,20 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
         {deck.pairs.map(p=>{
           const ab = p.associations.find(a=>a.direction==='AB');
           return (
-            <div className="row grid-4" key={p.id}>
+            <form key={p.id} className="row grid-4" action={saveRow}>
+              <input type="hidden" name="deckId" value={deck.id} />
+              <input type="hidden" name="pairId" value={p.id} />
+              <input type="hidden" name="associationId" value={ab?.id ?? ''} />
               <div className="td chk"><input type="checkbox" defaultChecked /></div>
-              <div className="td qcol"><input defaultValue={p.question} onBlur={async e=>updatePair(p.id, { question: e.currentTarget.value })} /></div>
-              <div className="td acol"><input defaultValue={p.answer} onBlur={async e=>updatePair(p.id, { answer: e.currentTarget.value })} /></div>
+              <div className="td qcol"><input name="question" defaultValue={p.question} /></div>
+              <div className="td acol"><input name="answer" defaultValue={p.answer} /></div>
               <div className="td scol">
-                <button className="score" onClick={async ()=>{
-                  const v = prompt('Score (-1 unseen, 0 wrong, 1+ right streak):', String(ab?.score ?? -1));
-                  if (v==null) return;
-                  const score = parseInt(v, 10);
-                  if (ab) await setScore(ab.id, score);
-                }}>
-                  <span className={`dot ${ab && ab.score>0 ? 'good': ''}`}></span>
-                  <span>{ab ? (ab.score<0 ? '—' : ab.score) : '—'}</span>
-                </button>
+                <div className="score-inline">
+                  <input name="score" type="number" min="-1" max="10" defaultValue={ab ? ab.score : -1} />
+                  <button className="chip save" type="submit">Save</button>
+                </div>
               </div>
-            </div>
+            </form>
           )
         })}
         <div className="footer">
@@ -66,7 +64,6 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
             <button className="chip">Export</button>
           </form>
           <div className="spacer" />
-          <div className="progress"><div className="bar" style={{ width: '0%' }} /></div><span className="muted">0%</span>
         </div>
       </div>
 
