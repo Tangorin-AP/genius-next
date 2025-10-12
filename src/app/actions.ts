@@ -48,3 +48,24 @@ export async function deleteDeck(formData: FormData) {
     redirect(redirectTo);
   }
 }
+
+'use server';
+
+import { prisma } from '@/lib/prisma';
+import { revalidatePath } from 'next/cache';
+
+/** Rename a deck (called from a form in page.tsx) */
+export async function renameDeck(formData: FormData) {
+  const deckId = String(formData.get('deckId') || '');
+  const name = String(formData.get('name') || '').trim();
+  if (!deckId) return;
+
+  await prisma.deck.update({
+    where: { id: deckId },
+    data: { name },
+  });
+
+  // Revalidate the deck page and the list page
+  revalidatePath(`/deck/${deckId}`);
+  revalidatePath(`/`);
+}
