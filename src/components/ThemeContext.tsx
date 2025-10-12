@@ -24,33 +24,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
 
-  const persistTheme = useCallback((next: Theme) => {
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? (window.localStorage.getItem(STORAGE_KEY) as Theme | null) : null;
+    const initial = stored === 'dark' ? 'dark' : 'light';
+    setThemeState(initial);
+    applyTheme(initial);
+    setMounted(true);
+  }, []);
+
+  const setTheme = useCallback((next: Theme) => {
+    setThemeState(next);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(STORAGE_KEY, next);
     }
     applyTheme(next);
   }, []);
 
-  useEffect(() => {
-    const stored = typeof window !== 'undefined' ? (window.localStorage.getItem(STORAGE_KEY) as Theme | null) : null;
-    const initial = stored === 'dark' ? 'dark' : 'light';
-    setThemeState(initial);
-    persistTheme(initial);
-    setMounted(true);
-  }, [persistTheme]);
-
-  const setTheme = useCallback((next: Theme) => {
-    setThemeState(next);
-    persistTheme(next);
-  }, [persistTheme]);
-
   const toggle = useCallback(() => {
-    setThemeState((prev) => {
-      const next = prev === 'light' ? 'dark' : 'light';
-      persistTheme(next);
-      return next;
-    });
-  }, [persistTheme]);
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  }, [setTheme]);
 
   const value = useMemo<ThemeContextValue>(() => ({ theme, setTheme, toggle }), [theme, setTheme, toggle]);
 
