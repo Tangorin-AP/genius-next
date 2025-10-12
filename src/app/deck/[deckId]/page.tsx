@@ -1,8 +1,6 @@
 
 import { prisma } from '@/lib/prisma';
 import { addPair, importCSVFromForm } from './actions';
-import { renameDeck } from '@/app/actions';
-import DeleteDeckForm from '@/components/DeleteDeckForm';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
