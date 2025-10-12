@@ -47,6 +47,9 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
             <div className="td qcol" data-label="Question"><input name="question" type="text" defaultValue={r.question} /></div>
             <div className="td acol" data-label="Answer"><input name="answer" type="text" defaultValue={r.answer} /></div>
             <div className="td scol" data-label="Score (+/-)">
+            <div className="td qcol"><input name="question" type="text" defaultValue={r.question} /></div>
+            <div className="td acol"><input name="answer" type="text" defaultValue={r.answer} /></div>
+            <div className="td scol">
               <div className="score-inline">
                 <input name="score" type="number" min="-1" max="10" defaultValue={r.score} />
                 <button className="chip" type="submit">Save</button>

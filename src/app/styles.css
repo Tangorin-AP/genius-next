@@ -28,6 +28,7 @@ body{margin:0;font:13px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvet
 .table-scroll{overflow:auto}
 .table-grid{min-width:720px;position:relative}
 .header,.row{display:grid;grid-template-columns:34px minmax(200px,2fr) minmax(200px,2fr) minmax(140px,1.2fr);align-items:center}
+.header,.row{display:grid;grid-template-columns:34px 1fr 1fr 160px;align-items:center}
 .header .th,.row .td{padding:.45rem .6rem}
 .header .th.scol,.row .td.scol{position:sticky;right:0}
 .header .th.scol{z-index:2;background:linear-gradient(var(--chrome-top),var(--chrome-bottom));box-shadow:-1px 0 0 rgba(0,0,0,.05)}
