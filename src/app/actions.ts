@@ -4,18 +4,18 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+/** Create a new deck from the home page form */
 export async function createDeck(formData: FormData) {
   const rawName = String(formData.get('name') ?? '').trim();
   const name = rawName === '' ? 'Untitled Pack' : rawName;
 
-  const deck = await prisma.deck.create({
-    data: { name },
-  });
+  const deck = await prisma.deck.create({ data: { name } });
 
   revalidatePath('/');
   redirect(`/deck/${deck.id}`);
 }
 
+/** Rename a deck (used by deck/[deckId]/page.tsx) */
 export async function renameDeck(formData: FormData) {
   const deckId = String(formData.get('deckId') ?? '');
   if (!deckId) return;
@@ -32,6 +32,7 @@ export async function renameDeck(formData: FormData) {
   revalidatePath(`/deck/${deckId}`);
 }
 
+/** Delete a deck (optionally redirect somewhere after) */
 export async function deleteDeck(formData: FormData) {
   const deckId = String(formData.get('deckId') ?? '');
   if (!deckId) return;
@@ -47,25 +48,4 @@ export async function deleteDeck(formData: FormData) {
   if (redirectTo) {
     redirect(redirectTo);
   }
-}
-
-'use server';
-
-import { prisma } from '@/lib/prisma';
-import { revalidatePath } from 'next/cache';
-
-/** Rename a deck (called from a form in page.tsx) */
-export async function renameDeck(formData: FormData) {
-  const deckId = String(formData.get('deckId') || '');
-  const name = String(formData.get('name') || '').trim();
-  if (!deckId) return;
-
-  await prisma.deck.update({
-    where: { id: deckId },
-    data: { name },
-  });
-
-  // Revalidate the deck page and the list page
-  revalidatePath(`/deck/${deckId}`);
-  revalidatePath(`/`);
 }
