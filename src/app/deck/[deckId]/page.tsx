@@ -13,7 +13,8 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
 
   const rows = deck.pairs.map(p=>{
     const ab = p.associations.find(a=>a.direction==='AB');
-    return { pairId: p.id, question: p.question, answer: p.answer, associationId: ab?.id ?? null, score: ab?.score ?? -1 };
+    const score = ab?.score ?? 0;
+    return { pairId: p.id, question: p.question, answer: p.answer, associationId: ab?.id ?? null, score: score < 0 ? 0 : score };
   });
 
   return (

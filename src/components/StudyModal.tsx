@@ -99,7 +99,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
         </div>
         <div className="modal-body">
           <div className="cue">{current?.question ?? '—'}</div>
-          <div className="meta"><span>AB</span> • <span>score {current ? (current.score < 0 ? '—' : current.score) : '—'}</span></div>
+          <div className="meta"><span>{current?.direction ?? 'AB'}</span> • <span>score {current ? (current.score < 0 ? '—' : current.score) : '—'}</span></div>
           <div className="answer-block">
             <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} placeholder="Type your answer…" />
             <div className="btn-row">

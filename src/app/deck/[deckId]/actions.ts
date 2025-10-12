@@ -8,8 +8,8 @@ export async function addPair(deckId: string) {
   const p = await prisma.pair.create({ data: { deckId, question: '', answer: '' } });
   await prisma.association.createMany({
     data: [
-      { pairId: p.id, direction: 'AB' },
-      { pairId: p.id, direction: 'BA' },
+      { pairId: p.id, direction: 'AB', score: 0, dueAt: new Date() },
+      { pairId: p.id, direction: 'BA', score: 0, dueAt: new Date() },
     ]
   });
   revalidatePath(`/deck/${deckId}`);
@@ -162,10 +162,10 @@ export async function saveRow(formData: FormData) {
     await prisma.pair.update({ where: { id: pairId }, data: { question, answer } });
   }
   if (associationId && score !== null && !Number.isNaN(score)) {
-    const s = Math.max(-1, Math.min(10, score));
+    const s = Math.max(0, Math.min(10, score));
     await prisma.association.update({
       where: { id: associationId },
-      data: { score: s, dueAt: s >= 0 ? new Date(Date.now() + Math.pow(5, Math.max(0, s))*1000) : null }
+      data: { score: s, dueAt: new Date(Date.now() + Math.pow(5, Math.max(0, s))*1000), firstTime: s === 0 ? false : undefined }
     });
   }
   if (deckId) revalidatePath(`/deck/${deckId}`);
