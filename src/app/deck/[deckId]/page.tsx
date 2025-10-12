@@ -4,6 +4,8 @@ import { addPair, importCSVFromForm } from './actions';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
+import ThemeToggle from '@/components/ThemeToggle';
+import ImportCSVForm from '@/components/ImportCSVForm';
 import { Suspense } from 'react';
 import Link from 'next/link';
 
@@ -39,7 +41,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
 
       <DeckTable deckId={deck.id} rows={rows} />
 
-      <div className="boxed" style={{marginTop:10}}>
+      <div className="boxed deck-footer">
         <div className="footer">
           <form action={addPair.bind(null, deck.id)}><button className="chip">+</button></form>
           <form
@@ -49,7 +51,8 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
             <input type="file" name="csv" accept=".csv" />
             <button className="chip">Import CSV</button>
           </form>
-          <Link className="chip" href={`/api/export?deckId=${deck.id}`}>Export JSON</Link>
+          <ImportCSVForm deckId={deck.id} />
+          <Link className="link-export" href={`/api/export?deckId=${deck.id}`}>Export CSV</Link>
           <div className="spacer" />
         </div>
       </div>

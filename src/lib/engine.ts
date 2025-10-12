@@ -59,8 +59,9 @@ export async function chooseAssociations({ deckId, count, minimumScore=-1, mValu
 }
 
 export async function mark(associationId: string, mark: 'RIGHT'|'WRONG'|'SKIP') {
-  const a = await prisma.association.findUnique({ where: { id: associationId } });
-  if (!a) return;
+  const a = await prisma.association.findUnique({ where: { id: associationId }, include: { pair: true } });
+  if (!a) return null;
+  const deckId = a.pair.deckId;
   if (mark === 'SKIP') {
     await prisma.association.update({
       where: { id: a.id },
@@ -79,4 +80,5 @@ export async function mark(associationId: string, mark: 'RIGHT'|'WRONG'|'SKIP') 
     const newScore = 0;
     await prisma.association.update({ where: { id: a.id }, data: { score: newScore, dueAt: nextDueFromScore(newScore), firstTime: false } });
   }
+  return deckId;
 }

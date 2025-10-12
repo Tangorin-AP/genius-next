@@ -1,13 +1,70 @@
-
-:root{
-  --chrome-top:#e0e3e8; --chrome-bottom:#cfd4db; --chrome-border:#b7bcc5;
-  --panel:#ffffff; --bg:#eceff3; --row-alt:#f7f9fb; --row-sel:#d9e7ff;
-  --ink:#111; --muted:#68707a; --green:#2ecc71; --orange:#f3b340;
+:root {
+  color-scheme: light;
+  --bg:#eceff3;
+  --panel:#ffffff;
+  --panel-soft:#f7f9fb;
+  --ink:#111318;
+  --muted:#68707a;
+  --link:#2b5fd9;
+  --chrome-top:#e0e3e8;
+  --chrome-bottom:#cfd4db;
+  --chrome-border:#b7bcc5;
+  --input-bg:#ffffff;
+  --input-border:#c8ced8;
+  --chip-bg:rgba(255,255,255,0.95);
+  --chip-border:#b7bcc5;
+  --chip-danger-bg:rgba(255,0,0,0.12);
+  --chip-danger-border:#d64545;
+  --shadow:0 4px 18px rgba(0,0,0,0.08);
+  --table-stripe:#f7f9fb;
+  --table-sticky-shadow:-1px 0 0 rgba(0,0,0,0.05);
+  --modal-shadow:0 20px 50px rgba(0,0,0,0.2);
+  --score-chip-bg:rgba(255,255,255,0.85);
+  --score-track:linear-gradient(90deg,#f05b5b 0%,#f0a95b 50%,#3fb573 100%);
+  --score-dot-outline:#ffffff;
+  --import-chip-bg:rgba(255,255,255,0.9);
+  --import-chip-border:#b7bcc5;
 }
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;font:13px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-.wrap{max-width:980px;margin:18px auto;padding:0 10px}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --bg:#15191f;
+  --panel:#1f242b;
+  --panel-soft:#252c34;
+  --ink:#f1f4f8;
+  --muted:#98a4b6;
+  --link:#86a7ff;
+  --chrome-top:#2b323d;
+  --chrome-bottom:#222832;
+  --chrome-border:#3a4452;
+  --input-bg:#2b333d;
+  --input-border:#3f4a5a;
+  --chip-bg:rgba(43,51,63,0.92);
+  --chip-border:#465267;
+  --chip-danger-bg:rgba(181,64,64,0.18);
+  --chip-danger-border:#f27d7d;
+  --shadow:0 10px 30px rgba(0,0,0,0.5);
+  --table-stripe:#222a34;
+  --table-sticky-shadow:-1px 0 0 rgba(0,0,0,0.4);
+  --modal-shadow:0 28px 70px rgba(0,0,0,0.6);
+  --score-chip-bg:rgba(39,46,56,0.9);
+  --score-track:linear-gradient(90deg,#f05b5b 0%,#f0a95b 50%,#3fb573 100%);
+  --score-dot-outline:#1f242b;
+  --import-chip-bg:rgba(37,43,52,0.92);
+  --import-chip-border:#3f4a5a;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font: 13px -apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.wrap { max-width: 980px; margin: 18px auto; padding: 0 10px; }
 
 /* Toolbar */
 .toolbar.aqua{
