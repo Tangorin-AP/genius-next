@@ -173,23 +173,19 @@ function toAssocView(a: AssociationRecord): AssocView {
   const question = direction === 'AB' ? a.pair.question : a.pair.answer;
   const answer = direction === 'AB' ? a.pair.answer : a.pair.question;
   const score = a.score;
-  const seenBefore = a.firstTime === false;
   return {
     id: a.id,
     pairId: a.pairId,
     direction,
     question,
     answer,
-    score,
+    score: score,
     dueAt: a.dueAt,
-    firstTime: !seenBefore || score <= 0,
+    firstTime: score < 0,
   };
 }
 
-export async function mark(
-  associationId: string,
-  mark: 'RIGHT' | 'WRONG' | 'SKIP' | 'INTRO',
-) {
+export async function mark(associationId: string, mark: 'RIGHT' | 'WRONG' | 'SKIP') {
   const association = await prisma.association.findUnique({
     where: { id: associationId },
     include: { pair: true },
@@ -205,19 +201,6 @@ export async function mark(
         score: -1,
         dueAt: null,
         firstTime: true,
-      },
-    });
-    return deckId;
-  }
-
-  if (mark === 'INTRO') {
-    const normalizedScore = Math.max(0, association.score);
-    await prisma.association.update({
-      where: { id: association.id },
-      data: {
-        score: normalizedScore,
-        dueAt: nextDueFromScore(normalizedScore),
-        firstTime: false,
       },
     });
     return deckId;
