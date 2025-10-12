@@ -2,6 +2,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { nextDueFromScore } from '@/lib/engine';
 import { revalidatePath } from 'next/cache';
 
 export async function addPair(deckId: string) {
@@ -128,12 +129,13 @@ export async function saveRow(formData: FormData) {
   }
   if (associationId && score !== null && !Number.isNaN(score)) {
     const s = Math.max(0, Math.min(10, score));
+    const isReset = s === 0;
     await prisma.association.update({
       where: { id: associationId },
       data: {
-        score: s,
-        dueAt: new Date(Date.now() + Math.pow(5, Math.max(0, s)) * 1000),
-        firstTime: s === 0 ? false : undefined,
+        score: isReset ? -1 : s,
+        dueAt: isReset ? new Date() : nextDueFromScore(s),
+        firstTime: isReset ? true : false,
       },
     });
   }
