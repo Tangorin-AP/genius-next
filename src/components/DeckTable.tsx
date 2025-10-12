@@ -388,10 +388,10 @@ function RowForm({
   const questionInputRef = useRef<HTMLInputElement>(null);
   const answerInputRef = useRef<HTMLInputElement>(null);
   const [editingScore, setEditingScore] = useState(false);
-  const [scoreDraft, setScoreDraft] = useState(row.score);
+  const [scoreDraft, setScoreDraft] = useState(String(clampScore(row.score)));
 
   useEffect(() => {
-    setScoreDraft(row.score);
+    setScoreDraft(String(clampScore(row.score)));
     setEditingScore(false);
   }, [row.score]);
 
@@ -424,7 +424,7 @@ function RowForm({
 
   const openScoreEditor = useCallback(() => {
     if (row.deleted) return;
-    setScoreDraft(row.score);
+    setScoreDraft(String(clampScore(row.score)));
     setEditingScore(true);
     requestAnimationFrame(() => {
       scoreInputRef.current?.focus();
@@ -439,9 +439,10 @@ function RowForm({
         if (scoreFieldRef.current) {
           scoreFieldRef.current.value = String(nextScore);
         }
+        setScoreDraft(String(nextScore));
         onUpdate(row.clientId, { score: nextScore });
       } else {
-        setScoreDraft(row.score);
+        setScoreDraft(String(clampScore(row.score)));
       }
       setEditingScore(false);
     },
@@ -452,9 +453,11 @@ function RowForm({
     (event: KeyboardEvent<HTMLInputElement>) => {
       if (event.key === 'Enter') {
         event.preventDefault();
+        event.stopPropagation();
         closeScoreEditor(true);
       } else if (event.key === 'Escape') {
         event.preventDefault();
+        event.stopPropagation();
         closeScoreEditor(false);
       }
     },
@@ -476,7 +479,6 @@ function RowForm({
       className="row grid-4"
       data-dirty={row.dirty ? 'true' : undefined}
       data-deleted={row.deleted ? 'true' : undefined}
-      data-score-editing={editingScore ? 'true' : undefined}
       action={saveRow}
       onSubmitCapture={() => onCommit(row.clientId, { deleted: row.deleted, isNew: row.isNew })}
     >
@@ -523,24 +525,45 @@ function RowForm({
       <div className="td scol" data-label="Score">
         <div className="score-cell">
           <div
-            className="score-chip"
+            className={`score-chip${editingScore ? ' score-chip--editing' : ''}`}
             role="button"
             tabIndex={row.deleted ? -1 : 0}
             aria-disabled={row.deleted}
             onDoubleClick={openScoreEditor}
             onKeyDown={(event) => {
+              if (editingScore || row.deleted) return;
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 openScoreEditor();
               }
             }}
-            title={row.deleted ? 'Restore to edit score' : 'Double-click to edit score'}
+            title={
+              row.deleted
+                ? 'Restore to edit score'
+                : editingScore
+                  ? 'Type a score, press Enter to save'
+                  : 'Double-click to edit score'
+            }
             style={scoreStyle}
           >
             <span className="score-chip__track">
               <span className="score-chip__dot" />
             </span>
-            <span className="score-chip__value">{clampScore(row.score)}</span>
+            {editingScore && !row.deleted ? (
+              <input
+                ref={scoreInputRef}
+                className="score-chip__input"
+                type="number"
+                min={0}
+                max={10}
+                value={scoreDraft}
+                onChange={(event) => setScoreDraft(event.currentTarget.value)}
+                onBlur={() => closeScoreEditor(true)}
+                onKeyDown={handleScoreKey}
+              />
+            ) : (
+              <span className="score-chip__value">{clampScore(row.score)}</span>
+            )}
           </div>
           <button
             className={`chip chip--danger chip--icon${row.deleted ? ' chip--active' : ''}`}
@@ -552,21 +575,6 @@ function RowForm({
             <span aria-hidden="true">{row.deleted ? '↺' : '×'}</span>
           </button>
         </div>
-        {editingScore && !row.deleted && (
-          <div className="score-edit">
-            <input
-              ref={scoreInputRef}
-              type="number"
-              min={0}
-              max={10}
-              value={scoreDraft}
-              onChange={(event) => setScoreDraft(Number(event.currentTarget.value))}
-              onBlur={() => closeScoreEditor(true)}
-              onKeyDown={handleScoreKey}
-            />
-            <span className="score-edit__hint">↵ to save, Esc to cancel</span>
-          </div>
-        )}
       </div>
       {row.deleted && (
         <div className="row__overlay" aria-hidden="true">

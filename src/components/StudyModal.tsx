@@ -86,16 +86,19 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   const confirmIntro = async () => {
     if (!current) return;
-    await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'SKIP' }) });
-    broadcastScore(current.pairId, Math.max(0, current.score));
+    await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'INTRO' }) });
+    const normalizedScore = Math.max(0, current.score);
+    broadcastScore(current.pairId, normalizedScore);
     setItems((prev) => {
       const clone = [...prev];
       if (clone[idx]) {
-        clone[idx] = { ...clone[idx], firstTime: false, score: Math.max(0, clone[idx].score) };
+        clone[idx] = { ...clone[idx], firstTime: false, score: normalizedScore };
       }
       return clone;
     });
-    next();
+    setRevealed(false);
+    setInput('');
+    setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const doSubmit = async () => {
