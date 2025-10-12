@@ -1,6 +1,6 @@
 
 import { prisma } from '@/lib/prisma';
-import { addPair, importCSV } from './actions';
+import { addPair, importCSVFromForm } from './actions';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
@@ -25,13 +25,10 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
       <div className="boxed" style={{marginTop:10}}>
         <div className="footer">
           <form action={addPair.bind(null, deck.id)}><button className="chip">+</button></form>
-          <form action={async(formData)=>{
-            'use server';
-            const file = formData.get('csv') as File | null;
-            if (!file) return;
-            const text = await file.text();
-            await importCSV(deck.id, text);
-          }} encType="multipart/form-data">
+          <form
+            action={importCSVFromForm.bind(null, deck.id)}
+            encType="multipart/form-data"
+          >
             <input type="file" name="csv" accept=".csv" />
             <button className="chip">Import CSV</button>
           </form>

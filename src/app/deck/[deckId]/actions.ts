@@ -135,6 +135,18 @@ export async function importCSV(deckId: string, csvText: string) {
   revalidatePath(`/deck/${deckId}`);
 }
 
+type TextReadable = { text: () => Promise<string> };
+
+export async function importCSVFromForm(deckId: string, formData: FormData) {
+  const file = formData.get('csv');
+  if (!file || typeof (file as Partial<TextReadable>).text !== 'function') {
+    return;
+  }
+
+  const text = await (file as TextReadable).text();
+  await importCSV(deckId, text);
+}
+
 export async function saveRow(formData: FormData) {
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
