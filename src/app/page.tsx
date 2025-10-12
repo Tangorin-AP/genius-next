@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { createDeck, renameDeck } from '@/app/actions';
 import DeleteDeckForm from '@/components/DeleteDeckForm';
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   const decks = await prisma.deck.findMany({
     orderBy: { createdAt: 'desc' },
@@ -22,11 +24,6 @@ export default async function Home() {
             <input name="name" placeholder="e.g. Neuroanatomy" />
           </label>
           <button type="submit" className="deck-card__button">Create &amp; open</button>
-        </form>
-        <form action={renameDeck} className="deck-title-form">
-          <input type="hidden" name="deckId" value={deck.id} />
-          <input className="deck-title-input" name="name" defaultValue={deck.name} />
-          <button className="chip" type="submit">Save</button>
         </form>
         {decks.map(deck => (
           <article key={deck.id} className="deck-card deck-card--manage">
