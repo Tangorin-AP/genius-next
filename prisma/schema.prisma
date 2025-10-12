@@ -1,0 +1,76 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = env("DATABASE_PROVIDER") // "sqlite" | "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Deck {
+  id         String   @id @default(cuid())
+  name       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  pairs      Pair[]
+  sessions   StudySession[]
+}
+
+model Pair {
+  id        String @id @default(cuid())
+  deckId    String
+  deck      Deck    @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  question  String
+  answer    String
+  group     String? // carries through from Genius "group"
+  type      String? // carries through from Genius "type"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // Two directional associations
+  associations Association[]
+}
+
+enum Direction {
+  AB
+  BA
+}
+
+model Association {
+  id        String   @id @default(cuid())
+  pairId    String
+  pair      Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  direction Direction
+  score     Int      @default(-1) // -1 = unseen, 0 = wrong, 1+ = streak
+  dueAt     DateTime?
+  firstTime Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pairId, direction])
+  @@index([dueAt])
+}
+
+model StudySession {
+  id        String   @id @default(cuid())
+  deckId    String
+  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  events    StudyEvent[]
+}
+
+enum Mark {
+  RIGHT
+  WRONG
+  SKIP
+}
+
+model StudyEvent {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  associationId String?
+  kind       String // "present" | "reveal" | "submit" | "mark"
+  detail     String? // JSON detail
+  at         DateTime @default(now())
+}
