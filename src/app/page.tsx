@@ -5,9 +5,7 @@ import { redirect } from 'next/navigation';
 
 export default async function Home() {
   const decks = await prisma.deck.findMany({ orderBy: { createdAt: 'desc' } });
-  if (decks.length === 1) {
-    redirect(`/deck/${decks[0].id}`);
-  }
+  if (decks.length === 1) redirect(`/deck/${decks[0].id}`);
   return (
     <main className="wrap">
       <div className="toolbar aqua">
