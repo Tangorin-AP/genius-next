@@ -62,6 +62,17 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     fetchSelection(deckId, params).then(res => { setItems(res); setIdx(0); setInput(''); setRevealed(false); setTimeout(()=>inputRef.current?.focus(), 0)});
   }, [open, deckId]);
 
+  useEffect(() => {
+    const body = typeof document === 'undefined' ? null : document.body;
+    if (!body) return () => {};
+    if (open) {
+      body.classList.add('study-open');
+    } else {
+      body.classList.remove('study-open');
+    }
+    return () => body.classList.remove('study-open');
+  }, [open]);
+
   if (!open) return null;
 
   const current = items[idx];
@@ -139,7 +150,26 @@ export default function StudyModal({ deckId }: { deckId: string }) {
           <div className="cue">{current?.question ?? '—'}</div>
           <div className="meta"><span>{current?.direction ?? 'AB'}</span> • <span>score {current ? (current.score < 0 ? '—' : current.score) : '—'}</span></div>
           <div className="answer-block">
-            <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} placeholder="Type your answer…" />
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={e=>setInput(e.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  if (revealed) {
+                    yes();
+                  } else {
+                    doSubmit();
+                  }
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  setInput('');
+                  setRevealed(false);
+                }
+              }}
+              placeholder="Type your answer…"
+            />
             <div className="btn-row">
               <button onClick={doReveal} className="btn" type="button">Reveal</button>
               <button onClick={doSubmit} className="btn primary" type="button">Submit</button>

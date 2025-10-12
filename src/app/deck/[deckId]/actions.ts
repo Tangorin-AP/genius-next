@@ -15,6 +15,24 @@ export async function addPair(deckId: string) {
   revalidatePath(`/deck/${deckId}`);
 }
 
+export async function createPairInline(deckId: string) {
+  const pair = await prisma.pair.create({ data: { deckId, question: '', answer: '' } });
+  const ab = await prisma.association.create({
+    data: { pairId: pair.id, direction: 'AB', score: 0, dueAt: new Date() },
+  });
+  await prisma.association.create({
+    data: { pairId: pair.id, direction: 'BA', score: 0, dueAt: new Date() },
+  });
+  revalidatePath(`/deck/${deckId}`);
+  return {
+    pairId: pair.id,
+    associationId: ab.id,
+    question: pair.question,
+    answer: pair.answer,
+    score: 0,
+  };
+}
+
 function parseDelimited(text: string, delimiter: ',' | '\t' = ',') {
   const rows: string[][] = [];
   let current: string[] = [];
