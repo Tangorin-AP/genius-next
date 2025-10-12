@@ -1,8 +1,9 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { saveDeckNotesAction } from '@/app/deck/[deckId]/actions';
+import ThemeToggle from './ThemeToggle';
 
 export default function DeckControls({ deckId, stats, initialNotes }: { deckId: string; stats: {pairs:number}; initialNotes?: string|null; }){
   const [q, setQ] = useState('');
@@ -11,7 +12,8 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
   const [mode, setMode] = useState<'exact'|'words'>('exact');
   const [openInfo, setOpenInfo] = useState(false);
   const [openNotes, setOpenNotes] = useState(false);
-  const [notes, setNotes] = useState(initialNotes || '');
+
+  const notes = useMemo(() => initialNotes || '', [initialNotes]);
 
   useEffect(()=>{
     const handler = (e: KeyboardEvent) => {
@@ -34,15 +36,17 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
         <button onClick={handleLearn} className="toolbtn play" title="Study">▶</button>
         <div className="sliderbox"><span>Learn</span><input type="range" min="-2" max="6" step="1" value={m} onChange={e=>setM(parseInt(e.currentTarget.value,10))} /><span>Review</span></div>
         <label className="match-mode" title="Choose how your answer is compared">
-          <span className="match-mode__label">Match mode</span>
+          <span className="match-mode__label">Answer check</span>
           <select value={mode} onChange={e=>setMode(e.currentTarget.value as any)}>
-            <option value="exact">Exact phrasing</option>
-            <option value="words">Same words (any order)</option>
+            <option value="exact">Exact phrase (case &amp; punctuation ignored)</option>
+            <option value="words">All words match (any order)</option>
           </select>
+          <span className="match-mode__hint">Exact ignores case &amp; punctuation. Word mode checks all words in any order.</span>
         </label>
         <button onClick={()=>setOpenInfo(true)} className="toolbtn" title="Info">i</button>
         <button onClick={()=>setOpenNotes(true)} className="toolbtn" title="Notes">📒</button>
         <div className="spacer"></div>
+        <ThemeToggle />
         <input id="searchBox" className="search" placeholder="Search" value={q} onChange={e=>setQ(e.currentTarget.value)} />
       </div>
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { createDeck, renameDeck } from '@/app/actions';
 import DeleteDeckForm from '@/components/DeleteDeckForm';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,8 @@ export default async function Home() {
     <main className="wrap">
       <div className="toolbar aqua">
         <div className="title">Genius • Learning</div>
+        <div className="spacer" />
+        <ThemeToggle />
       </div>
       <section className="pack-grid">
         <form action={createDeck} className="deck-card deck-card--create">
