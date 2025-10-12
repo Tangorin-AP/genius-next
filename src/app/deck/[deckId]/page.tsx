@@ -9,15 +9,18 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
   if (!deck) return <div>Deck not found</div>;
   return (
     <main className="wrap">
-      <div className="toolbar">
-        <button form="studyForm">▶︎ Learn</button>
-        <div className="seg"><span>Learn</span><div className="slider"/><span>Review</span></div>
-        <div className="spacer" />
-        <div>{deck.name}</div>
+      <div className="toolbar aqua">
+        <button form="studyForm" className="toolbtn play" title="Study">▶</button>
+        <div className="sliderbox"><span>Learn</span><input type="range" min="0" max="100" defaultValue={40} /><span>Review</span></div>
+        <button className="toolbtn" title="Info">i</button>
+        <button className="toolbtn" title="Notes">📒</button>
+        <div className="spacer"></div>
+        <input className="search" placeholder="Search" />
       </div>
+
       <div className="boxed">
         <div className="header">
-          <div className="th chk"/>
+          <div className="th chk" />
           <div className="th qcol">Question</div>
           <div className="th acol">Answer</div>
           <div className="th scol">Score(+-)</div>
@@ -25,7 +28,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
         {deck.pairs.map(p=>{
           const ab = p.associations.find(a=>a.direction==='AB');
           return (
-            <div className="row" key={p.id}>
+            <div className="row grid-4" key={p.id}>
               <div className="td chk"><input type="checkbox" defaultChecked /></div>
               <div className="td qcol"><input defaultValue={p.question} onBlur={async e=>updatePair(p.id, { question: e.currentTarget.value })} /></div>
               <div className="td acol"><input defaultValue={p.answer} onBlur={async e=>updatePair(p.id, { answer: e.currentTarget.value })} /></div>
@@ -44,7 +47,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
           )
         })}
         <div className="footer">
-          <form action={addPair.bind(null, deck.id)}><button>+</button></form>
+          <form action={addPair.bind(null, deck.id)}><button className="chip">+</button></form>
           <form action={async(formData)=>{
             'use server';
             const file = formData.get('csv') as File | null;
@@ -53,16 +56,17 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
             await importCSV(deck.id, text);
           }}>
             <input type="file" name="csv" accept=".csv" />
-            <button>Import CSV</button>
+            <button className="chip">Import</button>
           </form>
           <form action={async()=>{
             'use server';
             const json = await exportJSON(deck.id);
             return new Response(json, { headers: { 'content-type': 'application/json', 'content-disposition': 'attachment; filename=deck.json' } });
           }}>
-            <button>Export JSON</button>
+            <button className="chip">Export</button>
           </form>
           <div className="spacer" />
+          <div className="progress"><div className="bar" style={{ width: '0%' }} /></div><span className="muted">0%</span>
         </div>
       </div>
 
