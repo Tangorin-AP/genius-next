@@ -187,3 +187,24 @@ export async function saveDeckNotesAction(deckId: string, formData: FormData) {
   await prisma.deck.update({ where: { id: deckId }, data: { notes } });
   revalidatePath(`/deck/${deckId}`);
 }
+
+'use server';
+
+import { prisma } from '@/lib/prisma';
+import { revalidatePath } from 'next/cache';
+
+/** Rename a deck (called from a form in page.tsx) */
+export async function renameDeck(formData: FormData) {
+  const deckId = String(formData.get('deckId') || '');
+  const name = String(formData.get('name') || '').trim();
+  if (!deckId) return;
+
+  await prisma.deck.update({
+    where: { id: deckId },
+    data: { name },
+  });
+
+  // refresh both the deck page and the list page
+  revalidatePath(`/deck/${deckId}`);
+  revalidatePath(`/`);
+}
