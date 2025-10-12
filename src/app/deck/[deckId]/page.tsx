@@ -1,6 +1,5 @@
 
 import { prisma } from '@/lib/prisma';
-import { addPair } from './actions';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
@@ -46,9 +45,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
 
       <div className="boxed deck-footer">
         <div className="deck-footer__row">
-          <form action={addPair.bind(null, deck.id)}>
-            <button className="chip" type="submit">New card</button>
-          </form>
+          <div className="deck-footer__new">Use the “＋” row above to add a new card.</div>
           <ImportCSVForm deckId={deck.id} />
           <Link className="link-export" href={`/api/export?deckId=${deck.id}`}>Download CSV</Link>
           <div className="spacer" />

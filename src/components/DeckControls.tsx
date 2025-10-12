@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState, useTransition } from 'react';
 import { saveDeckNotesAction } from '@/app/deck/[deckId]/actions';
 import ThemeToggle from './ThemeToggle';
 
@@ -12,8 +12,21 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
   const [mode, setMode] = useState<'exact'|'words'>('exact');
   const [openInfo, setOpenInfo] = useState(false);
   const [openNotes, setOpenNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState(initialNotes || '');
+  const [notesStatus, setNotesStatus] = useState<'idle'|'saving'|'saved'|'error'>('idle');
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [isSavingNotes, startSavingNotes] = useTransition();
 
-  const notes = useMemo(() => initialNotes || '', [initialNotes]);
+  useEffect(() => {
+    setNotesDraft(initialNotes || '');
+  }, [initialNotes]);
+
+  useEffect(() => {
+    if (openNotes) {
+      setNotesStatus('idle');
+      setNotesError(null);
+    }
+  }, [openNotes]);
 
   useEffect(()=>{
     const handler = (e: KeyboardEvent) => {
@@ -29,6 +42,28 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
     localStorage.setItem('studyParams', JSON.stringify({ m, min, count: 30, mode }));
     (document.getElementById('studyForm') as HTMLFormElement | null)?.requestSubmit();
   }
+
+  const handleNotesSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData();
+    formData.set('notes', notesDraft);
+    setNotesError(null);
+    setNotesStatus('saving');
+    startSavingNotes(() => {
+      void saveDeckNotesAction(deckId, formData)
+        .then(() => {
+          setNotesStatus('saved');
+          setTimeout(() => {
+            setOpenNotes(false);
+            setNotesStatus('idle');
+          }, 500);
+        })
+        .catch(() => {
+          setNotesStatus('error');
+          setNotesError('Could not save notes. Please try again.');
+        });
+    });
+  };
 
   return (
     <>
@@ -68,10 +103,21 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <div className="modal-header"><div className="title">Notes</div><div className="spacer"/><button className="icon" onClick={()=>setOpenNotes(false)}>×</button></div>
             <div className="modal-body">
-              <form action={saveDeckNotesAction.bind(null, deckId)}>
-                <textarea name="notes" defaultValue={notes} style={{width:'100%',minHeight:180}}></textarea>
-                <div style={{display:'flex',justifyContent:'flex-end',marginTop:10}}>
-                  <button className="chip" type="submit">Save</button>
+              <form onSubmit={handleNotesSubmit}>
+                <textarea
+                  name="notes"
+                  value={notesDraft}
+                  onChange={(event) => setNotesDraft(event.currentTarget.value)}
+                  style={{width:'100%',minHeight:180}}
+                ></textarea>
+                <div className="notes-actions">
+                  <div className="notes-feedback" role="status">
+                    {notesStatus === 'saved' && <span>Saved!</span>}
+                    {notesStatus === 'error' && <span className="notes-feedback--error">{notesError}</span>}
+                  </div>
+                  <button className="chip" type="submit" disabled={isSavingNotes}>
+                    {isSavingNotes ? 'Saving…' : 'Save'}
+                  </button>
                 </div>
               </form>
             </div>
