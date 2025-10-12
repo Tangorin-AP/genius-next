@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { createDeck, renameDeck } from './actions';
 import DeleteDeckForm from '@/components/DeleteDeckForm';
-import ThemeToggle from '@/components/ThemeToggle';
 
 export default async function Home() {
   const decks = await prisma.deck.findMany({
@@ -12,10 +11,8 @@ export default async function Home() {
   });
   return (
     <main className="wrap">
-      <div className="toolbar aqua top-toolbar">
+      <div className="toolbar aqua">
         <div className="title">Genius • Learning</div>
-        <div className="spacer" />
-        <ThemeToggle />
       </div>
       <section className="pack-grid">
         <form action={createDeck} className="deck-card deck-card--create">
