@@ -33,12 +33,12 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
               <input type="hidden" name="pairId" value={p.id} />
               <input type="hidden" name="associationId" value={ab?.id ?? ''} />
               <div className="td chk"><input type="checkbox" defaultChecked /></div>
-              <div className="td qcol"><input name="question" defaultValue={p.question} /></div>
-              <div className="td acol"><input name="answer" defaultValue={p.answer} /></div>
+              <div className="td qcol"><input name="question" type="text" defaultValue={p.question} /></div>
+              <div className="td acol"><input name="answer" type="text" defaultValue={p.answer} /></div>
               <div className="td scol">
                 <div className="score-inline">
                   <input name="score" type="number" min="-1" max="10" defaultValue={ab ? ab.score : -1} />
-                  <button className="chip save" type="submit">Save</button>
+                  <button className="chip" type="submit">Save</button>
                 </div>
               </div>
             </form>
@@ -64,6 +64,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
             <button className="chip">Export</button>
           </form>
           <div className="spacer" />
+          <div className="progress"><div className="bar" style={{ width: '0%' }} /></div><span className="muted">0%</span>
         </div>
       </div>
 
