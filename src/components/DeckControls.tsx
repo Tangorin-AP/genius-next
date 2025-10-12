@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { saveDeckNotes } from '@/app/deck/[deckId]/actions';
+import { saveDeckNotesAction } from '@/app/deck/[deckId]/actions';
 
 export default function DeckControls({ deckId, stats, initialNotes }: { deckId: string; stats: {pairs:number}; initialNotes?: string|null; }){
   const [q, setQ] = useState('');
@@ -15,23 +15,17 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
 
   useEffect(()=>{
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'f' && (e.ctrlKey||e.metaKey)) {
-        const el = document.getElementById('searchBox') as HTMLInputElement|null;
-        el?.focus();
-      }
+      if (e.key === 'f' && (e.ctrlKey||e.metaKey)) (document.getElementById('searchBox') as HTMLInputElement| null)?.focus();
     };
     window.addEventListener('keydown', handler);
     return ()=>window.removeEventListener('keydown', handler);
   }, []);
 
-  useEffect(()=>{
-    window.dispatchEvent(new CustomEvent('deck-search', { detail: q }));
-  }, [q]);
+  useEffect(()=>{ window.dispatchEvent(new CustomEvent('deck-search', { detail: q })); }, [q]);
 
   function handleLearn(){
     localStorage.setItem('studyParams', JSON.stringify({ m, min, count: 30, mode }));
-    const f = document.getElementById('studyForm') as HTMLFormElement|null;
-    f?.requestSubmit();
+    (document.getElementById('studyForm') as HTMLFormElement | null)?.requestSubmit();
   }
 
   return (
@@ -69,11 +63,7 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <div className="modal-header"><div className="title">Notes</div><div className="spacer"/><button className="icon" onClick={()=>setOpenNotes(false)}>×</button></div>
             <div className="modal-body">
-              <form action={async (formData)=>{
-                'use server';
-                const val = String(formData.get('notes') || '');
-                await saveDeckNotes(deckId, val);
-              }}>
+              <form action={saveDeckNotesAction.bind(null, deckId)}>
                 <textarea name="notes" defaultValue={notes} style={{width:'100%',minHeight:180}}></textarea>
                 <div style={{display:'flex',justifyContent:'flex-end',marginTop:10}}>
                   <button className="chip" type="submit">Save</button>

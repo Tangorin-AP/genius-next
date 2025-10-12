@@ -49,22 +49,9 @@ export async function deletePair(formData: FormData) {
   if (deckId) revalidatePath(`/deck/${deckId}`);
 }
 
-export async function saveDeckNotes(deckId: string, notes: string) {
+// New: server action specifically for Client Component notes form
+export async function saveDeckNotesAction(deckId: string, formData: FormData) {
+  const notes = String(formData.get('notes') || '');
   await prisma.deck.update({ where: { id: deckId }, data: { notes } });
-}
-
-export async function importCSV(deckId: string, csv: string) {
-  const lines = csv.split(/\r?\n/).filter(Boolean);
-  for (const line of lines) {
-    const [q, ...rest] = line.split(',');
-    const a = rest.join(',').trim();
-    const p = await prisma.pair.create({ data: { deckId, question: q.trim(), answer: a } });
-    await prisma.association.createMany({ data: [{ pairId: p.id, direction: 'AB' }, { pairId: p.id, direction: 'BA' }] });
-  }
   revalidatePath(`/deck/${deckId}`);
-}
-
-export async function exportJSON(deckId: string) {
-  const pairs = await prisma.pair.findMany({ where: { deckId }, orderBy: { createdAt: 'asc' } });
-  return JSON.stringify(pairs.map(p=>({ question: p.question, answer: p.answer })), null, 2);
 }

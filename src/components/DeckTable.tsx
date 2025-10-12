@@ -49,18 +49,12 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
             <div className="score-inline">
               <input name="score" type="number" min="-1" max="10" defaultValue={r.score} />
               <button className="chip" type="submit">Save</button>
-              <form action={deletePair} style={{display:'inline'}}>
-                <input type="hidden" name="pairId" value={r.pairId} />
-                <input type="hidden" name="deckId" value={deckId} />
-                <button className="chip" type="submit">Delete</button>
-              </form>
+              <button className="chip" type="submit" formAction={deletePair}>Delete</button>
             </div>
           </div>
         </form>
       ))}
-      <div className="footer">
-        <div className="spacer" />
-      </div>
+      <div className="footer"><div className="spacer" /></div>
     </div>
   );
 }
