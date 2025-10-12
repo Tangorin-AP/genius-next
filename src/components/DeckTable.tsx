@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -12,21 +11,27 @@ type Row = {
   score: number;
 };
 
-export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[] }){
+export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[] }) {
   const [query, setQuery] = useState('');
-  useEffect(()=>{
-    const onSearch = (e: Event) => {
-      const ce = e as CustomEvent<string>;
-      setQuery(ce.detail || '');
+
+  useEffect(() => {
+    const onSearch = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      setQuery(customEvent.detail || '');
     };
+
     window.addEventListener('deck-search', onSearch as EventListener);
-    return ()=>window.removeEventListener('deck-search', onSearch as EventListener);
+    return () => window.removeEventListener('deck-search', onSearch as EventListener);
   }, []);
 
-  const filtered = useMemo(()=>{
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter(r => r.question.toLowerCase().includes(q) || r.answer.toLowerCase().includes(q));
+    return rows.filter(
+      (row) =>
+        row.question.toLowerCase().includes(q) ||
+        row.answer.toLowerCase().includes(q),
+    );
   }, [rows, query]);
 
   return (
