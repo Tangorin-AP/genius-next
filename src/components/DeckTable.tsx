@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent } from 'react';
+import type { CSSProperties, FormEvent, KeyboardEvent } from 'react';
 import { saveRow, deletePair } from '@/app/deck/[deckId]/actions';
 
 type Row = {
@@ -187,8 +187,30 @@ function RowForm({
     [row.score],
   );
 
+  const handleSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      const submitter = (event.nativeEvent as SubmitEvent).submitter;
+      if (submitter instanceof HTMLElement && submitter.dataset.action === 'delete') {
+        requestAnimationFrame(() => {
+          onRemove(row.pairId);
+        });
+      }
+    },
+    [onRemove, row.pairId],
+  );
+
+  const rowClassName = useMemo(
+    () => `row grid-4${editingScore ? ' row--score-editing' : ''}`,
+    [editingScore],
+  );
+
+  const scoreCellClassName = useMemo(
+    () => `score-cell${editingScore ? ' score-cell--editing' : ''}`,
+    [editingScore],
+  );
+
   return (
-    <form ref={formRef} className="row grid-4" action={saveRow}>
+    <form ref={formRef} className={rowClassName} action={saveRow} onSubmit={handleSubmit}>
       <input type="hidden" name="deckId" value={deckId} />
       <input type="hidden" name="pairId" value={row.pairId} />
       <input type="hidden" name="associationId" value={row.associationId ?? ''} />
@@ -223,7 +245,7 @@ function RowForm({
         />
       </div>
       <div className="td scol" data-label="Score">
-        <div className="score-cell">
+        <div className={scoreCellClassName}>
           <div
             className="score-chip"
             role="button"
@@ -247,7 +269,7 @@ function RowForm({
             className="chip chip--danger"
             type="submit"
             formAction={deletePair}
-            onClick={() => onRemove(row.pairId)}
+            data-action="delete"
           >
             Delete
           </button>
