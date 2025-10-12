@@ -1,0 +1,4 @@
+
+/* compact inline Save control */
+.score-inline{display:flex;align-items:center;gap:.4rem}
+.chip.save{padding:.22rem .5rem}
