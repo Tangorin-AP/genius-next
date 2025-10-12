@@ -1,8 +1,6 @@
 
 import { prisma } from '@/lib/prisma';
-import { addPair } from './actions';
-import { renameDeck } from '../../actions';
-import DeleteDeckForm from '@/components/DeleteDeckForm';
+import { addPair, importCSVFromForm } from './actions';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
@@ -23,11 +21,6 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
 
   return (
     <main className="wrap">
-      <div className="toolbar aqua top-toolbar">
-        <div className="title">Genius • Learning</div>
-        <div className="spacer" />
-        <ThemeToggle />
-      </div>
       <div className="page-header deck-header">
         <Link href="/" className="back-link">← Packs</Link>
         <form action={renameDeck} className="deck-title-form">
@@ -50,8 +43,13 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
 
       <div className="boxed deck-footer">
         <div className="footer">
-          <form action={addPair.bind(null, deck.id)}>
-            <button className="chip chip--icon" type="submit" aria-label="Add new card">＋</button>
+          <form action={addPair.bind(null, deck.id)}><button className="chip">+</button></form>
+          <form
+            action={importCSVFromForm.bind(null, deck.id)}
+            encType="multipart/form-data"
+          >
+            <input type="file" name="csv" accept=".csv" />
+            <button className="chip">Import CSV</button>
           </form>
           <ImportCSVForm deckId={deck.id} />
           <Link className="link-export" href={`/api/export?deckId=${deck.id}`}>Export CSV</Link>
