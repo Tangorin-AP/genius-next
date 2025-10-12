@@ -23,7 +23,7 @@ function weight(score: number, mValue: number, sigma = 1.2): number {
 
 export async function chooseAssociations({ deckId, count, minimumScore=-1, mValue=0 }: ChooseOptions): Promise<AssocView[]> {
   const associations = await prisma.association.findMany({
-    where: { pair: { deckId } },
+    where: { pair: { deckId }, direction: 'AB' },
     include: { pair: true },
   });
 
@@ -52,7 +52,7 @@ export async function chooseAssociations({ deckId, count, minimumScore=-1, mValu
     direction: a.direction as Direction,
     question: a.direction === 'AB' ? a.pair.question : a.pair.answer,
     answer: a.direction === 'AB' ? a.pair.answer : a.pair.question,
-    score: a.score,
+    score: a.score < 0 ? 0 : a.score,
     dueAt: a.dueAt,
     firstTime: a.firstTime,
   }));
@@ -62,11 +62,18 @@ export async function mark(associationId: string, mark: 'RIGHT'|'WRONG'|'SKIP') 
   const a = await prisma.association.findUnique({ where: { id: associationId } });
   if (!a) return;
   if (mark === 'SKIP') {
-    await prisma.association.update({ where: { id: a.id }, data: { score: -1, dueAt: null, firstTime: true } });
+    await prisma.association.update({
+      where: { id: a.id },
+      data: {
+        dueAt: nextDueFromScore(Math.max(0, a.score)),
+        firstTime: false,
+      }
+    });
     return;
   }
   if (mark === 'RIGHT') {
-    const newScore = (a.score < 0 ? 0 : a.score) + 1;
+    const base = a.score < 0 ? 0 : a.score;
+    const newScore = base + 1;
     await prisma.association.update({ where: { id: a.id }, data: { score: newScore, dueAt: nextDueFromScore(newScore), firstTime: false } });
   } else {
     const newScore = 0;
