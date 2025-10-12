@@ -15,6 +15,126 @@ export async function addPair(deckId: string) {
   revalidatePath(`/deck/${deckId}`);
 }
 
+function parseDelimited(text: string, delimiter: ',' | '\t' = ',') {
+  const rows: string[][] = [];
+  let current: string[] = [];
+  let field = '';
+  let inQuotes = false;
+
+  const pushField = () => {
+    current.push(field);
+    field = '';
+  };
+
+  const pushRow = () => {
+    if (current.length === 0) {
+      return;
+    }
+    const normalized = current.map((value) => value.trim());
+    if (normalized.some((value) => value !== '')) {
+      rows.push(normalized);
+    }
+    current = [];
+  };
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === delimiter) {
+      pushField();
+    } else if (char === '\r') {
+      // skip
+    } else if (char === '\n') {
+      pushField();
+      pushRow();
+    } else {
+      field += char;
+    }
+  }
+
+  pushField();
+  pushRow();
+  return rows;
+}
+
+function parseCSV(text: string) {
+  const sanitized = text.replace(/^\uFEFF/, '');
+  const delimiter: ',' | '\t' = sanitized.includes('\t') && !sanitized.includes(',') ? '\t' : ',';
+  return parseDelimited(sanitized, delimiter);
+}
+
+export async function importCSV(deckId: string, csvText: string) {
+  const rows = parseCSV(csvText);
+  if (rows.length === 0) return;
+
+  const header = rows[0].map((value) => value.toLowerCase());
+  const questionAliases = ['question', 'prompt', 'front', 'term'];
+  const answerAliases = ['answer', 'back', 'definition'];
+  let dataStartIndex = 0;
+  let questionIndex = 0;
+  let answerIndex = 1;
+
+  const headerQuestionIndex = header.findIndex((value) => questionAliases.includes(value));
+  const headerAnswerIndex = header.findIndex((value) => answerAliases.includes(value));
+
+  if ((headerQuestionIndex !== -1 || headerAnswerIndex !== -1) && rows.length > 1) {
+    dataStartIndex = 1;
+    if (headerQuestionIndex !== -1) {
+      questionIndex = headerQuestionIndex;
+    }
+    if (headerAnswerIndex !== -1) {
+      answerIndex = headerAnswerIndex;
+    }
+  }
+
+  const entries = rows.slice(dataStartIndex).map((row) => {
+    const question = row[questionIndex] ?? '';
+    const answer = row[answerIndex] ?? '';
+    return {
+      question: question.trim(),
+      answer: answer.trim(),
+    };
+  }).filter((entry) => entry.question !== '' || entry.answer !== '');
+
+  if (entries.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    for (const entry of entries) {
+      const pair = await tx.pair.create({
+        data: {
+          deckId,
+          question: entry.question,
+          answer: entry.answer,
+        },
+      });
+
+      await tx.association.createMany({
+        data: [
+          { pairId: pair.id, direction: 'AB' },
+          { pairId: pair.id, direction: 'BA' },
+        ],
+      });
+    }
+  });
+
+  revalidatePath(`/deck/${deckId}`);
+}
+
 export async function saveRow(formData: FormData) {
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');

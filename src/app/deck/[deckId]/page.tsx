@@ -1,6 +1,6 @@
 
 import { prisma } from '@/lib/prisma';
-import { addPair, importCSV, exportJSON } from './actions';
+import { addPair, importCSV } from './actions';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
