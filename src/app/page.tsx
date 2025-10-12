@@ -9,7 +9,7 @@ export default async function Home() {
   return (
     <main className="wrap">
       <div className="toolbar aqua">
-        <div className="title">Genius (Web • Next.js)</div>
+        <div className="title">Genius (Web • Next.js) — v2</div>
       </div>
       <div className="boxed">
         <div className="header grid-1">
