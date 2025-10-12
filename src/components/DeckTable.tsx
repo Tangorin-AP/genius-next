@@ -44,9 +44,9 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
             <input type="hidden" name="pairId" value={r.pairId} />
             <input type="hidden" name="associationId" value={r.associationId ?? ''} />
             <div className="td chk"><input type="checkbox" defaultChecked /></div>
-            <div className="td qcol"><input name="question" type="text" defaultValue={r.question} /></div>
-            <div className="td acol"><input name="answer" type="text" defaultValue={r.answer} /></div>
-            <div className="td scol">
+            <div className="td qcol" data-label="Question"><input name="question" type="text" defaultValue={r.question} /></div>
+            <div className="td acol" data-label="Answer"><input name="answer" type="text" defaultValue={r.answer} /></div>
+            <div className="td scol" data-label="Score (+/-)">
               <div className="score-inline">
                 <input name="score" type="number" min="-1" max="10" defaultValue={r.score} />
                 <button className="chip" type="submit">Save</button>

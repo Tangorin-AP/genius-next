@@ -18,6 +18,10 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
 
   return (
     <main className="wrap">
+      <div className="page-header">
+        <Link href="/" className="back-link">← Packs</Link>
+        <h1 className="deck-title">{deck.name}</h1>
+      </div>
       <DeckControls deckId={deck.id} stats={{pairs: deck.pairs.length}} initialNotes={deck.notes}/>
 
       <DeckTable deckId={deck.id} rows={rows} />
