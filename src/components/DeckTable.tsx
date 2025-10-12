@@ -15,9 +15,12 @@ type Row = {
 export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[] }) {
   const [query, setQuery] = useState('');
   const [data, setData] = useState<Row[]>(rows);
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
+  const submittersRef = useRef(new Map<string, () => void>());
 
   useEffect(() => {
     setData(rows);
+    setDirtyIds(new Set());
   }, [rows]);
 
   useEffect(() => {
@@ -49,19 +52,59 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
     return () => window.removeEventListener('deck-score', handleScoreBroadcast as EventListener);
   }, [handleScoreBroadcast]);
 
-  const updateRow = useCallback((pairId: string, patch: Partial<Row>) => {
-    setData((prev) =>
-      prev.map((row) =>
-        row.pairId === pairId
-          ? { ...row, ...patch }
-          : row,
-      ),
-    );
+  const markDirty = useCallback((pairId: string, dirty: boolean) => {
+    setDirtyIds((prev) => {
+      const next = new Set(prev);
+      if (dirty) {
+        next.add(pairId);
+      } else {
+        next.delete(pairId);
+      }
+      return next;
+    });
   }, []);
+
+  const registerSubmitter = useCallback((pairId: string, submitter: () => void) => {
+    submittersRef.current.set(pairId, submitter);
+    return () => {
+      submittersRef.current.delete(pairId);
+    };
+  }, []);
+
+  const updateRow = useCallback(
+    (pairId: string, patch: Partial<Row>) => {
+      setData((prev) =>
+        prev.map((row) =>
+          row.pairId === pairId
+            ? { ...row, ...patch }
+            : row,
+        ),
+      );
+      markDirty(pairId, true);
+    },
+    [markDirty],
+  );
 
   const removeRow = useCallback((pairId: string) => {
     setData((prev) => prev.filter((row) => row.pairId !== pairId));
+    setDirtyIds((prev) => {
+      if (!prev.has(pairId)) return prev;
+      const next = new Set(prev);
+      next.delete(pairId);
+      return next;
+    });
   }, []);
+
+  const commitRow = useCallback((pairId: string) => {
+    markDirty(pairId, false);
+  }, [markDirty]);
+
+  const handleSaveAll = useCallback(() => {
+    const submitters = submittersRef.current;
+    for (const pairId of dirtyIds) {
+      submitters.get(pairId)?.();
+    }
+  }, [dirtyIds]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -73,40 +116,64 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
     );
   }, [data, query]);
 
+  const hasDirty = dirtyIds.size > 0;
+
   return (
-    <div className="boxed table-scroll">
-      <div className="table-grid">
-        <div className="header">
-          <div className="th chk" />
-          <div className="th qcol">Question</div>
-          <div className="th acol">Answer</div>
-          <div className="th scol">Score</div>
-        </div>
-        {filtered.map((row) => (
-          <RowForm
-            key={row.pairId}
-            deckId={deckId}
-            row={row}
-            onUpdate={updateRow}
-            onRemove={removeRow}
-          />
-        ))}
-        <div className="footer"><div className="spacer" /></div>
+    <>
+      <div className="table-actions">
+        <button
+          type="button"
+          className="chip chip--primary"
+          onClick={handleSaveAll}
+          disabled={!hasDirty}
+        >
+          Save changes
+        </button>
+        <span className="table-actions__hint">Use this to confirm edits and deletions.</span>
       </div>
-    </div>
+      <div className="boxed table-scroll">
+        <div className="table-grid">
+          <div className="header">
+            <div className="th chk" />
+            <div className="th qcol">Question</div>
+            <div className="th acol">Answer</div>
+            <div className="th scol">Score</div>
+          </div>
+          {filtered.map((row) => (
+            <RowForm
+              key={row.pairId}
+              deckId={deckId}
+              row={row}
+              dirty={dirtyIds.has(row.pairId)}
+              onUpdate={updateRow}
+              onRemove={removeRow}
+              onCommit={commitRow}
+              registerSubmit={registerSubmitter}
+            />
+          ))}
+          <div className="footer"><div className="spacer" /></div>
+        </div>
+      </div>
+    </>
   );
 }
 
 function RowForm({
   deckId,
   row,
+  dirty,
   onUpdate,
   onRemove,
+  onCommit,
+  registerSubmit,
 }: {
   deckId: string;
   row: Row;
+  dirty: boolean;
   onUpdate: (pairId: string, patch: Partial<Row>) => void;
   onRemove: (pairId: string) => void;
+  onCommit: (pairId: string) => void;
+  registerSubmit: (pairId: string, submitter: () => void) => () => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const scoreInputRef = useRef<HTMLInputElement>(null);
@@ -124,6 +191,8 @@ function RowForm({
       formRef.current.requestSubmit();
     }
   }, []);
+
+  useEffect(() => registerSubmit(row.pairId, requestSubmit), [registerSubmit, row.pairId, requestSubmit]);
 
   const handleFieldBlur = useCallback(() => {
     requestSubmit();
@@ -188,7 +257,13 @@ function RowForm({
   );
 
   return (
-    <form ref={formRef} className="row grid-4" action={saveRow}>
+    <form
+      ref={formRef}
+      className="row grid-4"
+      data-dirty={dirty ? 'true' : undefined}
+      action={saveRow}
+      onSubmitCapture={() => onCommit(row.pairId)}
+    >
       <input type="hidden" name="deckId" value={deckId} />
       <input type="hidden" name="pairId" value={row.pairId} />
       <input type="hidden" name="associationId" value={row.associationId ?? ''} />
@@ -244,12 +319,14 @@ function RowForm({
             <span className="score-chip__value">{clampScore(row.score)}</span>
           </div>
           <button
-            className="chip chip--danger"
+            className="chip chip--danger chip--icon"
             type="submit"
             formAction={deletePair}
             onClick={() => onRemove(row.pairId)}
+            aria-label="Delete card"
+            title="Delete card"
           >
-            Delete
+            <span aria-hidden="true">×</span>
           </button>
         </div>
         {editingScore && (
