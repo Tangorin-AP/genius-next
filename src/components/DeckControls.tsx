@@ -33,10 +33,11 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
       <div className="toolbar aqua">
         <button onClick={handleLearn} className="toolbtn play" title="Study">▶</button>
         <div className="sliderbox"><span>Learn</span><input type="range" min="-2" max="6" step="1" value={m} onChange={e=>setM(parseInt(e.currentTarget.value,10))} /><span>Review</span></div>
-        <label style={{display:'flex',alignItems:'center',gap:6,color:'#68707a'}}>Match
+        <label className="match-mode" title="Choose how your answer is compared">
+          <span className="match-mode__label">Match mode</span>
           <select value={mode} onChange={e=>setMode(e.currentTarget.value as any)}>
-            <option value="exact">Exact</option>
-            <option value="words">Words (bag)</option>
+            <option value="exact">Exact phrasing</option>
+            <option value="words">Same words (any order)</option>
           </select>
         </label>
         <button onClick={()=>setOpenInfo(true)} className="toolbtn" title="Info">i</button>
