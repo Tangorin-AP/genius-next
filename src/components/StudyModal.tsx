@@ -62,6 +62,18 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     fetchSelection(deckId, params).then(res => { setItems(res); setIdx(0); setInput(''); setRevealed(false); setTimeout(()=>inputRef.current?.focus(), 0)});
   }, [open, deckId]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (open) {
+      document.body.dataset.studyOpen = 'true';
+    } else {
+      delete document.body.dataset.studyOpen;
+    }
+    return () => {
+      delete document.body.dataset.studyOpen;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const current = items[idx];
@@ -153,7 +165,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   };
 
   return (
-    <div className="screen">
+    <div className="screen screen--study">
       <div className="modal boxed modal--study">
         <div className="modal-header">
           <div className="title">Study</div>
