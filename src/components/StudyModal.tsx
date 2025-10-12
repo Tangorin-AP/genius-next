@@ -65,12 +65,33 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   if (!open) return null;
 
   const current = items[idx];
+  const isIntro = Boolean(current?.firstTime);
+  const scoreDisplay = current ? (current.score < 0 ? '—' : current.score) : '—';
+  const metaLabel = isIntro ? 'new word' : `score ${scoreDisplay}`;
   const onClose = ()=> setOpen(false);
 
   const doReveal = () => setRevealed(true);
 
+  const confirmIntro = async () => {
+    if (!current) return;
+    await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'SKIP' }) });
+    broadcastScore(current.pairId, Math.max(0, current.score));
+    setItems((prev) => {
+      const clone = [...prev];
+      if (clone[idx]) {
+        clone[idx] = { ...clone[idx], firstTime: false, score: Math.max(0, clone[idx].score) };
+      }
+      return clone;
+    });
+    next();
+  };
+
   const doSubmit = async () => {
     if (!current) return;
+    if (current.firstTime) {
+      await confirmIntro();
+      return;
+    }
     const mode = paramsRef.current.mode;
     if (isMatch(current.answer, input, mode)) {
       await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'RIGHT' }) });
@@ -98,7 +119,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     }
   }
   const yes = async () => {
-    if (!current) return;
+    if (!current || current.firstTime) return;
     await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'RIGHT' }) });
     const newScore = Math.max(0, current.score) + 1;
     broadcastScore(current.pairId, newScore);
@@ -110,7 +131,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     next();
   };
   const no  = async () => {
-    if (!current) return;
+    if (!current || current.firstTime) return;
     await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'WRONG' }) });
     broadcastScore(current.pairId, 0);
     setItems((prev) => {
@@ -122,6 +143,10 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   };
   const skip = async () => {
     if (!current) return;
+    if (current.firstTime) {
+      await confirmIntro();
+      return;
+    }
     await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'SKIP' }) });
     broadcastScore(current.pairId, Math.max(0, current.score));
     next();
@@ -129,56 +154,96 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   return (
     <div className="screen">
-      <div className="modal boxed">
+      <div className="modal boxed modal--study">
         <div className="modal-header">
           <div className="title">Study</div>
           <div className="spacer" />
           <button className="icon" onClick={onClose}>×</button>
         </div>
-        <div className="modal-body">
-          <div className="cue">{current?.question ?? '—'}</div>
-          <div className="meta"><span>{current?.direction ?? 'AB'}</span> • <span>score {current ? (current.score < 0 ? '—' : current.score) : '—'}</span></div>
-          <div className="answer-block">
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={e=>setInput(e.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  if (revealed) {
-                    yes();
-                  } else {
-                    doSubmit();
-                  }
-                } else if (event.key === 'Escape') {
-                  event.preventDefault();
-                  setInput('');
-                  setRevealed(false);
-                }
-              }}
-              placeholder="Type your answer…"
-            />
-            <div className="btn-row">
-              <button onClick={doReveal} className="btn" type="button">Reveal</button>
-              <button onClick={doSubmit} className="btn primary" type="button">Submit</button>
-            </div>
-          </div>
-          {revealed && current && (
-            <div className="revealed">
-              <div className="diff">
-                You typed: {input || '—'}{"\n"}
-                Expected: {current.answer}
+        <div className={`modal-body${isIntro ? ' modal-body--intro' : ''}`}>
+          {!current ? (
+            <div className="study-empty">You're all caught up for now. Try broadening the study settings to review more cards.</div>
+          ) : isIntro ? (
+            <div className="study-intro">
+              <div className="study-intro__question">{current.question}</div>
+              <div className="study-intro__meta">
+                <span>{current.direction ?? 'AB'}</span>
+                <span aria-hidden="true">•</span>
+                <span>{metaLabel}</span>
               </div>
-              <div className="answer-line">Answer: <span>{current.answer}</span></div>
-              <div className="review-row">
-                <span>Were you correct?</span>
-                <div className="spacer" />
-                <button onClick={yes} className="btn yes" type="button">Yes</button>
-                <button onClick={no} className="btn no primary" type="button">No</button>
-                <button onClick={skip} className="btn" type="button">Skip</button>
+              <div className="study-intro__answer">{current.answer}</div>
+              <p className="study-intro__note">Remember this item, then type it below before you go.</p>
+              <div className="study-intro__input">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      void confirmIntro();
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setInput('');
+                    }
+                  }}
+                  placeholder="Type it to lock it in…"
+                />
+                <button onClick={confirmIntro} className="btn primary" type="button">Go</button>
               </div>
+              <div className="study-intro__footer">Press Enter or Go when you're ready.</div>
             </div>
+          ) : (
+            <>
+              <div className="cue">{current.question}</div>
+              <div className="meta meta--study">
+                <span>{current.direction ?? 'AB'}</span>
+                <span aria-hidden="true">•</span>
+                <span>{metaLabel}</span>
+              </div>
+              <div className="answer-block">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      if (revealed) {
+                        yes();
+                      } else {
+                        doSubmit();
+                      }
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault();
+                      setInput('');
+                      setRevealed(false);
+                    }
+                  }}
+                  placeholder="Type your answer…"
+                />
+                <div className="btn-row">
+                  <button onClick={doReveal} className="btn" type="button">Reveal</button>
+                  <button onClick={doSubmit} className="btn primary" type="button">Submit</button>
+                </div>
+              </div>
+              {revealed && current && (
+                <div className="revealed">
+                  <div className="diff">
+                    You typed: {input || '—'}{"\n"}
+                    Expected: {current.answer}
+                  </div>
+                  <div className="answer-line">Answer: <span>{current.answer}</span></div>
+                  <div className="review-row">
+                    <span>Were you correct?</span>
+                    <div className="spacer" />
+                    <button onClick={yes} className="btn yes" type="button">Yes</button>
+                    <button onClick={no} className="btn no" type="button">No</button>
+                    <button onClick={skip} className="btn" type="button">Skip</button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
