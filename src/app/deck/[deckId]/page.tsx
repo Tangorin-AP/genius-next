@@ -4,11 +4,13 @@ import { addPair, importCSVFromForm } from './actions';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
-import ThemeToggle from '@/components/ThemeToggle';
 import ImportCSVForm from '@/components/ImportCSVForm';
+import DeleteDeckForm from '@/components/DeleteDeckForm';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { renameDeck } from '@/app/actions';
+
+export const dynamic = 'force-dynamic';
 
 export default async function DeckPage({ params }: { params: { deckId: string }}) {
   const deck = await prisma.deck.findUnique({ where: { id: params.deckId }, include: { pairs: { include: { associations: true } } } });
@@ -24,12 +26,6 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
     <main className="wrap">
       <div className="page-header deck-header">
         <Link href="/" className="back-link">← Packs</Link>
-        <Link href="/" className="back-link">← Packs</Link>
- <form action={renameDeck} className="deck-title-form">
-  <input type="hidden" name="deckId" value={deck.id} />
-  <input className="deck-title-input" name="name" defaultValue={deck.name} />
-  <button className="chip" type="submit">Save</button>
-</form>
         <form action={renameDeck} className="deck-title-form">
           <input type="hidden" name="deckId" value={deck.id} />
           <input

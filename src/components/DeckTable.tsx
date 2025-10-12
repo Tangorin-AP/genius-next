@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import { saveRow, deletePair } from '@/app/deck/[deckId]/actions';
 
 type Row = {
@@ -148,6 +148,15 @@ function RowForm({
     [closeScoreEditor],
   );
 
+  const scoreStyle = useMemo(
+    () =>
+      ({
+        '--score-percent': scoreToPercent(row.score),
+        '--score-color': scoreToColor(row.score),
+      }) as CSSProperties,
+    [row.score],
+  );
+
   return (
     <form ref={formRef} className="row grid-4" action={saveRow}>
       <input type="hidden" name="deckId" value={deckId} />
@@ -197,10 +206,7 @@ function RowForm({
               }
             }}
             title="Double-click to edit score"
-            style={{
-              ['--score-percent' as '--score-percent']: scoreToPercent(row.score),
-              ['--score-color' as '--score-color']: scoreToColor(row.score),
-            }}
+            style={scoreStyle}
           >
             <span className="score-chip__track">
               <span className="score-chip__dot" />
@@ -234,4 +240,21 @@ function RowForm({
       </div>
     </form>
   );
+}
+
+function clampScore(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(10, Math.round(value)));
+}
+
+function scoreToPercent(score: number) {
+  return `${(clampScore(score) / 10) * 100}%`;
+}
+
+function scoreToColor(score: number) {
+  const clamped = clampScore(score);
+  const hue = (clamped / 10) * 120; // 0 = red, 120 = green
+  return `hsl(${Math.round(hue)}, 70%, 50%)`;
 }
