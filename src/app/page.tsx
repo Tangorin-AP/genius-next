@@ -1,9 +1,8 @@
 
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { createDeck, renameDeck } from './actions';
+import { createDeck, renameDeck } from '@/app/actions';
 import DeleteDeckForm from '@/components/DeleteDeckForm';
-import { renameDeck } from '@/app/actions';
 
 export default async function Home() {
   const decks = await prisma.deck.findMany({
