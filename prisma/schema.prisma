@@ -1,15 +1,17 @@
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"     // ✅ hard-coded for Neon
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Deck {
   id         String   @id @default(cuid())
   name       String
+  notes      String?  // new
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   pairs      Pair[]

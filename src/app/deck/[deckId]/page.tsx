@@ -1,49 +1,28 @@
 
 import { prisma } from '@/lib/prisma';
-import { addPair, importCSV, exportJSON, saveRow } from './actions';
+import { addPair, importCSV, exportJSON } from './actions';
 import StudyModal from '@/components/StudyModal';
+import DeckControls from '@/components/DeckControls';
+import DeckTable from '@/components/DeckTable';
 import { Suspense } from 'react';
+import Link from 'next/link';
 
 export default async function DeckPage({ params }: { params: { deckId: string }}) {
   const deck = await prisma.deck.findUnique({ where: { id: params.deckId }, include: { pairs: { include: { associations: true } } } });
   if (!deck) return <div>Deck not found</div>;
+
+  const rows = deck.pairs.map(p=>{
+    const ab = p.associations.find(a=>a.direction==='AB');
+    return { pairId: p.id, question: p.question, answer: p.answer, associationId: ab?.id ?? null, score: ab?.score ?? -1 };
+  });
+
   return (
     <main className="wrap">
-      <div className="toolbar aqua">
-        <button form="studyForm" className="toolbtn play" title="Study">▶</button>
-        <div className="sliderbox"><span>Learn</span><input type="range" min="0" max="100" defaultValue={40} /><span>Review</span></div>
-        <button className="toolbtn" title="Info">i</button>
-        <button className="toolbtn" title="Notes">📒</button>
-        <div className="spacer"></div>
-        <input className="search" placeholder="Search" />
-      </div>
+      <DeckControls deckId={deck.id} stats={{pairs: deck.pairs.length}} initialNotes={deck.notes}/>
 
-      <div className="boxed">
-        <div className="header">
-          <div className="th chk" />
-          <div className="th qcol">Question</div>
-          <div className="th acol">Answer</div>
-          <div className="th scol">Score(+-)</div>
-        </div>
-        {deck.pairs.map(p=>{
-          const ab = p.associations.find(a=>a.direction==='AB');
-          return (
-            <form key={p.id} className="row grid-4" action={saveRow}>
-              <input type="hidden" name="deckId" value={deck.id} />
-              <input type="hidden" name="pairId" value={p.id} />
-              <input type="hidden" name="associationId" value={ab?.id ?? ''} />
-              <div className="td chk"><input type="checkbox" defaultChecked /></div>
-              <div className="td qcol"><input name="question" type="text" defaultValue={p.question} /></div>
-              <div className="td acol"><input name="answer" type="text" defaultValue={p.answer} /></div>
-              <div className="td scol">
-                <div className="score-inline">
-                  <input name="score" type="number" min="-1" max="10" defaultValue={ab ? ab.score : -1} />
-                  <button className="chip" type="submit">Save</button>
-                </div>
-              </div>
-            </form>
-          )
-        })}
+      <DeckTable deckId={deck.id} rows={rows} />
+
+      <div className="boxed" style={{marginTop:10}}>
         <div className="footer">
           <form action={addPair.bind(null, deck.id)}><button className="chip">+</button></form>
           <form action={async(formData)=>{
@@ -52,19 +31,12 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
             if (!file) return;
             const text = await file.text();
             await importCSV(deck.id, text);
-          }}>
+          }} encType="multipart/form-data">
             <input type="file" name="csv" accept=".csv" />
-            <button className="chip">Import</button>
+            <button className="chip">Import CSV</button>
           </form>
-          <form action={async()=>{
-            'use server';
-            const json = await exportJSON(deck.id);
-            return new Response(json, { headers: { 'content-type': 'application/json', 'content-disposition': 'attachment; filename=deck.json' } });
-          }}>
-            <button className="chip">Export</button>
-          </form>
+          <Link className="chip" href={`/api/export?deckId=${deck.id}`}>Export JSON</Link>
           <div className="spacer" />
-          <div className="progress"><div className="bar" style={{ width: '0%' }} /></div><span className="muted">0%</span>
         </div>
       </div>
 

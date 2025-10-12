@@ -1,5 +1,4 @@
 
-// 'use server'
 'use server';
 
 import { prisma } from '@/lib/prisma';
@@ -16,15 +15,6 @@ export async function addPair(deckId: string) {
   revalidatePath(`/deck/${deckId}`);
 }
 
-export async function updatePair(pairId: string, data: { question?: string; answer?: string }) {
-  await prisma.pair.update({ where: { id: pairId }, data });
-}
-
-export async function setScore(associationId: string, score: number) {
-  await prisma.association.update({ where: { id: associationId }, data: { score, dueAt: score>=0 ? new Date(Date.now() + Math.pow(5, Math.max(0, score))*1000) : null } });
-}
-
-// New: saveRow — server-action form handler (no client event handlers needed)
 export async function saveRow(formData: FormData) {
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
@@ -49,6 +39,20 @@ export async function saveRow(formData: FormData) {
   if (deckId) revalidatePath(`/deck/${deckId}`);
 }
 
+export async function deletePair(formData: FormData) {
+  const deckId = String(formData.get('deckId') ?? '');
+  const pairId = String(formData.get('pairId') ?? '');
+  if (pairId) {
+    await prisma.association.deleteMany({ where: { pairId } });
+    await prisma.pair.delete({ where: { id: pairId } });
+  }
+  if (deckId) revalidatePath(`/deck/${deckId}`);
+}
+
+export async function saveDeckNotes(deckId: string, notes: string) {
+  await prisma.deck.update({ where: { id: deckId }, data: { notes } });
+}
+
 export async function importCSV(deckId: string, csv: string) {
   const lines = csv.split(/\r?\n/).filter(Boolean);
   for (const line of lines) {
@@ -61,6 +65,6 @@ export async function importCSV(deckId: string, csv: string) {
 }
 
 export async function exportJSON(deckId: string) {
-  const pairs = await prisma.pair.findMany({ where: { deckId } });
+  const pairs = await prisma.pair.findMany({ where: { deckId }, orderBy: { createdAt: 'asc' } });
   return JSON.stringify(pairs.map(p=>({ question: p.question, answer: p.answer })), null, 2);
 }

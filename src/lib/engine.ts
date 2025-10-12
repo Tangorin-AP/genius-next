@@ -8,35 +8,30 @@ export function nextDueFromScore(score: number): Date {
   return new Date(Date.now() + s*SEC);
 }
 
-// Pull associations from DB and prepare an enumerator selection
 export interface ChooseOptions {
   deckId: string;
-  count: number;         // like setCount:
-  minimumScore?: number; // like setMinimumScore:
-  mValue?: number;       // probability center (clean-room gaussian; in Genius this lives in enumerator)
+  count: number;
+  minimumScore?: number;
+  mValue?: number;
 }
 
 function weight(score: number, mValue: number, sigma = 1.2): number {
-  // Clean-room weighting: gaussian centered at mValue; unseen (-1) slightly boosted.
-  if (score < 0) return 0.60; // nudge first-time into the mix
+  if (score < 0) return 0.60; // boost first-time items
   const d = score - mValue;
   return Math.exp(-(d*d)/(2*sigma*sigma));
 }
 
 export async function chooseAssociations({ deckId, count, minimumScore=-1, mValue=0 }: ChooseOptions): Promise<AssocView[]> {
-  // Fetch enabled pairs -> two directions. In this minimal build we keep all enabled.
   const associations = await prisma.association.findMany({
     where: { pair: { deckId } },
     include: { pair: true },
   });
 
   const now = new Date();
-  // 1) immediately-due items first (review), in dueAt ascending
   const due = associations
     .filter(a => a.score >= minimumScore && a.dueAt && a.dueAt <= now)
     .sort((a,b) => (a.dueAt!.getTime() - b.dueAt!.getTime()));
 
-  // 2) if we still need more, pick from pool weighted by score around mValue
   const pool = associations
     .filter(a => (a.dueAt == null || a.dueAt > now) && a.score >= minimumScore);
 
@@ -74,7 +69,6 @@ export async function mark(associationId: string, mark: 'RIGHT'|'WRONG'|'SKIP') 
     const newScore = (a.score < 0 ? 0 : a.score) + 1;
     await prisma.association.update({ where: { id: a.id }, data: { score: newScore, dueAt: nextDueFromScore(newScore), firstTime: false } });
   } else {
-    // WRONG
     const newScore = 0;
     await prisma.association.update({ where: { id: a.id }, data: { score: newScore, dueAt: nextDueFromScore(newScore), firstTime: false } });
   }
