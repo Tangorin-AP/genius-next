@@ -91,6 +91,8 @@ body {
 .search:focus{outline:none;border-color:var(--link);box-shadow:0 0 0 3px color-mix(in srgb,var(--link) 18%,transparent)}
 .match-mode{display:flex;flex-direction:column;gap:.2rem;color:var(--muted)}
 .match-mode select{border:1px solid var(--chrome-border);border-radius:8px;padding:.35rem .5rem;background:var(--input-bg);color:var(--ink);min-width:160px}
+.match-mode input[type=number]{border:1px solid var(--chrome-border);border-radius:8px;padding:.35rem .5rem;background:var(--input-bg);color:var(--ink);min-width:80px}
+.match-mode input[type=number]:focus{outline:none;border-color:var(--link);box-shadow:0 0 0 3px color-mix(in srgb,var(--link) 18%,transparent)}
 .match-mode select:focus{outline:none;border-color:var(--link);box-shadow:0 0 0 3px color-mix(in srgb,var(--link) 18%,transparent)}
 .match-mode__label{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .match-mode__hint{font-size:.72rem;line-height:1.2;color:var(--muted)}
@@ -199,6 +201,26 @@ body {
 
 .page-header + .toolbar{margin-top:0}
 
+/* Reference article */
+.article{display:flex;flex-direction:column;gap:18px;margin-top:18px}
+.article__toolbar .title{font-size:1.1rem}
+.article__content{margin-top:0;padding:2rem;display:flex;flex-direction:column;gap:1.6rem}
+.article__content h1{margin:0;font-size:1.9rem}
+.article__intro{margin:0;color:var(--muted);line-height:1.6}
+.article__section{display:flex;flex-direction:column;gap:.9rem}
+.article__section h2{margin:0;font-size:1.35rem}
+.article__content ul{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.85rem}
+.article__content li{line-height:1.6;color:var(--ink)}
+.article__content li p{margin:0;color:inherit}
+.article__content li strong{color:var(--ink)}
+.article__content code{background:var(--panel-soft);border-radius:4px;padding:.05rem .3rem;font-size:.85rem}
+
+@media (max-width:720px){
+  .article__content{padding:1.5rem}
+  .article__content h1{font-size:1.6rem}
+  .article__section h2{font-size:1.2rem}
+}
+
 .footer{display:flex;gap:.6rem;align-items:center;padding:.5rem .6rem;background:var(--panel-soft);border-top:1px solid var(--chrome-border)}
 .chip{border:1px solid var(--chrome-border);background:var(--chip-bg);border-radius:6px;padding:.25rem .6rem;cursor:pointer;color:var(--ink);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
 .chip:hover{background:color-mix(in srgb,var(--chip-bg) 70%,var(--link) 10%);border-color:color-mix(in srgb,var(--chrome-border) 70%,var(--link) 30%);box-shadow:0 6px 12px rgba(0,0,0,.1)}
@@ -264,6 +286,7 @@ body[data-study-open='true'] .table-grid{visibility:hidden}
 .meta{color:var(--muted);margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem;font-weight:600;text-transform:uppercase;font-size:.78rem;letter-spacing:.08em}
 .meta--study{justify-content:flex-start}
 .study-empty{padding:1rem 0;color:var(--muted);text-align:center;font-size:.9rem}
+.study-error{margin-bottom:.75rem;padding:.5rem .75rem;border-radius:8px;background:color-mix(in srgb,#f7d7d7 40%,transparent);color:#7f1818;font-size:.85rem}
 .answer-block input{width:100%;padding:.6rem .7rem;border:1px solid var(--chrome-border);border-radius:8px;font-size:15px}
 .btn-row{display:flex;gap:.6rem;margin-top:.6rem}
 .btn{display:inline-flex;align-items:center;justify-content:center;padding:.45rem .95rem;border-radius:999px;border:1px solid var(--chrome-border);background:var(--chip-bg);color:var(--ink);font-weight:600;cursor:pointer;transition:background .2s ease,border-color .2s ease,box-shadow .2s ease,transform .15s ease}
@@ -271,6 +294,7 @@ body[data-study-open='true'] .table-grid{visibility:hidden}
 .btn:active{transform:translateY(1px)}
 .btn.primary{background:var(--link);border-color:var(--link);color:#fff}
 .btn.primary:hover{background:color-mix(in srgb,var(--link) 78%,#ffffff 18%);border-color:color-mix(in srgb,var(--link) 70%,#ffffff 15%)}
+.btn.btn--default{box-shadow:0 0 0 2px color-mix(in srgb,var(--link) 60%,transparent);border-color:var(--link)}
 .btn.yes{background:color-mix(in srgb,#3fb573 20%,transparent);border-color:color-mix(in srgb,#3fb573 45%,var(--chrome-border) 55%);color:#135b33}
 .btn.no{background:color-mix(in srgb,#f05b5b 18%,transparent);border-color:color-mix(in srgb,#f05b5b 50%,var(--chrome-border) 50%);color:#7f1818}
 .btn:focus-visible{outline:2px solid var(--link);outline-offset:2px}
