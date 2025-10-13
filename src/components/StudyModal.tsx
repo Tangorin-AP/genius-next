@@ -1,12 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RawSessionPlan, SessionCard, SessionScheduler } from '@/lib/session';
 import { computeCorrectness, defaultMatchingMode, MatchingMode, normalizeAnswerDisplay } from '@/lib/matching';
 
 const PASS_THRESHOLD = 0.5;
-
-type Phase = 'idle' | 'welcome' | 'review' | 'quiz' | 'check' | 'empty';
 
 type StudyParams = {
   m: number;
@@ -16,6 +14,11 @@ type StudyParams = {
 };
 
 const DEFAULT_PARAMS: StudyParams = { m: 0, min: -1, count: 30, mode: defaultMatchingMode() };
+
+type SessionState = {
+  scheduler: SessionScheduler | null;
+  current: SessionCard | null;
+};
 
 function readParams(): StudyParams {
   try {
@@ -52,76 +55,43 @@ function formatScore(score: number): string {
 
 export default function StudyModal({ deckId }: { deckId: string }) {
   const [open, setOpen] = useState(false);
-  const [scheduler, setScheduler] = useState<SessionScheduler | null>(null);
-  const [current, setCurrent] = useState<SessionCard | null>(null);
+  const [session, setSession] = useState<SessionState>({ scheduler: null, current: null });
   const [input, setInput] = useState('');
+  const [revealed, setRevealed] = useState(false);
   const [autoChoice, setAutoChoice] = useState<'YES' | 'NO' | null>(null);
   const [checkScore, setCheckScore] = useState<number | null>(null);
   const [progress, setProgress] = useState({ seen: 0, total: 0 });
-  const [phase, setPhase] = useState<Phase>('idle');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const paramsRef = useRef<StudyParams>(DEFAULT_PARAMS);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [inputLocked, setInputLocked] = useState(false);
 
-  const resetForNextCard = useCallback(
-    (card: SessionCard | null, activeScheduler: SessionScheduler | null) => {
-      if (!activeScheduler) {
-        setProgress({ seen: 0, total: 0 });
-      } else {
-        setProgress(activeScheduler.progress());
-      }
-      setCurrent(card);
-      setActionError(null);
-      setAutoChoice(null);
-      setCheckScore(null);
-      setInputLocked(false);
-
-      if (!card) {
-        setInput('');
-        setPhase('empty');
-        return;
-      }
-
-      if (card.firstTime) {
-        setInput(card.answer);
-        setPhase('review');
-      } else {
-        setInput('');
-        setPhase('quiz');
-      }
-
-      setTimeout(() => inputRef.current?.focus(), 0);
-    },
-    [],
-  );
-
-  const runQuizOnce = useCallback(() => {
+  const takeNextCard = useCallback((scheduler: SessionScheduler | null) => {
     if (!scheduler) {
-      resetForNextCard(null, null);
+      setSession({ scheduler: null, current: null });
+      setProgress({ seen: 0, total: 0 });
       return;
     }
-    const nextCard = scheduler.next();
-    resetForNextCard(nextCard ?? null, scheduler);
-  }, [resetForNextCard, scheduler]);
-
-  const runQuiz = useCallback(
-    (newScheduler: SessionScheduler) => {
-      setScheduler(newScheduler);
-      const snapshot = newScheduler.progress();
-      setProgress(snapshot);
-      if (snapshot.total === 0) {
-        resetForNextCard(null, newScheduler);
-      } else {
-        setCurrent(null);
-        setPhase('welcome');
-      }
-    },
-    [resetForNextCard],
-  );
+    const next = scheduler.next();
+    const prog = scheduler.progress();
+    setProgress(prog);
+    setSession({ scheduler, current: next ?? null });
+    setActionError(null);
+    if (next) {
+      setInput(next.firstTime ? next.answer : '');
+      setRevealed(next.firstTime);
+      setAutoChoice(null);
+      setCheckScore(null);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    } else {
+      setInput('');
+      setRevealed(false);
+      setAutoChoice(null);
+      setCheckScore(null);
+    }
+  }, []);
 
   useEffect(() => {
     const onSubmitFromToolbar = (e: Event) => {
@@ -140,26 +110,19 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     let active = true;
     setLoading(true);
     setError(null);
-    setScheduler(null);
-    setCurrent(null);
-    setPhase('idle');
-    setInput('');
-    setAutoChoice(null);
-    setCheckScore(null);
-    setActionError(null);
-    setInputLocked(false);
-    setProgress({ seen: 0, total: 0 });
     const params = readParams();
     paramsRef.current = params;
     fetchSelection(deckId, params)
       .then((plan) => {
         if (!active) return;
-        runQuiz(new SessionScheduler(plan));
+        const scheduler = new SessionScheduler(plan);
+        setSession({ scheduler, current: null });
+        setProgress(scheduler.progress());
+        takeNextCard(scheduler);
       })
       .catch(() => {
         if (!active) return;
-        setScheduler(null);
-        setCurrent(null);
+        setSession({ scheduler: null, current: null });
         setError('Could not load cards.');
       })
       .finally(() => {
@@ -169,7 +132,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     return () => {
       active = false;
     };
-  }, [open, deckId, runQuiz]);
+  }, [open, deckId, takeNextCard]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -183,21 +146,25 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     };
   }, [open]);
 
+  const scheduler = session.scheduler;
+  const current = session.current;
+
   const close = () => {
     setOpen(false);
-    setScheduler(null);
-    setCurrent(null);
-    setPhase('idle');
+    setSession({ scheduler: null, current: null });
   };
 
-  const progressPercent = useMemo(() => {
-    if (progress.total === 0) return 0;
-    return Math.min(1, progress.seen / progress.total);
-  }, [progress]);
+  const refreshProgress = () => {
+    if (!scheduler) {
+      setProgress({ seen: 0, total: 0 });
+      return;
+    }
+    setProgress(scheduler.progress());
+  };
 
-  const startSession = () => {
-    if (!scheduler) return;
-    runQuizOnce();
+  const next = () => {
+    takeNextCard(scheduler);
+    refreshProgress();
   };
 
   const confirmIntro = async () => {
@@ -208,7 +175,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       if (!res.ok) throw new Error('mark failed');
       scheduler.associationWrong(current);
       broadcastScore(current.pairId, 0);
-      runQuizOnce();
+      next();
     } catch (err) {
       console.error(err);
       setActionError('Could not update this card. Please try again.');
@@ -225,7 +192,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       if (!res.ok) throw new Error('mark failed');
       scheduler.associationRight(current);
       broadcastScore(current.pairId, current.score);
-      runQuizOnce();
+      next();
     } catch (err) {
       console.error(err);
       setActionError('Could not update this card. Please try again.');
@@ -242,7 +209,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       if (!res.ok) throw new Error('mark failed');
       scheduler.associationWrong(current);
       broadcastScore(current.pairId, 0);
-      runQuizOnce();
+      next();
     } catch (err) {
       console.error(err);
       setActionError('Could not update this card. Please try again.');
@@ -259,7 +226,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       if (!res.ok) throw new Error('mark failed');
       scheduler.associationSkip(current);
       broadcastScore(current.pairId, -1);
-      runQuizOnce();
+      next();
     } catch (err) {
       console.error(err);
       setActionError('Could not update this card. Please try again.');
@@ -274,9 +241,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       await confirmIntro();
       return;
     }
-    setInputLocked(true);
     setSubmitting(true);
-    let movedToCheck = false;
     try {
       const { mode } = paramsRef.current;
       const score = await computeCorrectness(current.answer, input, mode);
@@ -286,21 +251,25 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       }
       setCheckScore(score);
       setAutoChoice(score >= PASS_THRESHOLD ? 'YES' : 'NO');
-      setPhase('check');
-      movedToCheck = true;
+      setRevealed(true);
     } finally {
       setSubmitting(false);
-      if (!movedToCheck) {
-        setInputLocked(false);
-      }
     }
+  };
+
+  const handleReveal = () => {
+    if (!current) return;
+    setRevealed(true);
+    setAutoChoice(null);
+    setCheckScore(null);
   };
 
   if (!open) return null;
 
+  const isIntro = Boolean(current?.firstTime);
   const scoreDisplay = current ? formatScore(current.score) : '—';
-  const isIntro = phase === 'review';
   const metaLabel = isIntro ? 'new word' : `score ${scoreDisplay}`;
+  const progressPercent = progress.total === 0 ? 0 : Math.min(1, progress.seen / progress.total);
 
   return (
     <div className="screen screen--study">
@@ -314,23 +283,11 @@ export default function StudyModal({ deckId }: { deckId: string }) {
           {actionError && !loading && !error && (
             <div className="study-error" role="status">{actionError}</div>
           )}
-          <div className="study-progress">
-            <div className="study-progress__bar" aria-hidden="true">
-              <div className="study-progress__fill" style={{ width: `${Math.round(progressPercent * 100)}%` }} />
-            </div>
-            <div className="study-progress__label">Progress {Math.round(progressPercent * 100)}%</div>
-          </div>
           {loading ? (
             <div className="study-empty">Preparing your session…</div>
           ) : error ? (
             <div className="study-empty" role="alert">{error}</div>
-          ) : phase === 'welcome' ? (
-            <div className="study-welcome">
-              <h2>Take a moment…</h2>
-              <p>Find your focus, breathe, and get ready to review what you&apos;ve learned. When you&apos;re ready, start the session and stay in the flow until you&apos;re done.</p>
-              <button className="btn primary" type="button" onClick={startSession}>Begin session</button>
-            </div>
-          ) : phase === 'empty' ? (
+          ) : !current ? (
             <div className="study-empty">You're all caught up for now. Try broadening the study settings to review more cards.</div>
           ) : phase === 'review' && current ? (
             <div className="study-intro">
@@ -357,11 +314,11 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                     }
                   }}
                   placeholder="Type it to lock it in…"
-                  disabled={submitting || inputLocked}
+                  disabled={submitting}
                 />
                 <button onClick={confirmIntro} className="btn primary" type="button" disabled={submitting}>Start recall</button>
               </div>
-              <div className="study-intro__footer">{progress.seen} / {progress.total}</div>
+              <div className="study-intro__footer">Progress {Math.round(progressPercent * 100)}%</div>
             </div>
           ) : phase === 'quiz' && current ? (
             <>
@@ -381,21 +338,59 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
-                      void doSubmit();
+                      if (revealed) {
+                        if (autoChoice === 'YES') void applyRight();
+                        else void applyWrong();
+                      } else {
+                        void doSubmit();
+                      }
                     } else if (event.key === 'Escape') {
                       event.preventDefault();
                       setInput('');
+                      setRevealed(false);
                       setAutoChoice(null);
                       setCheckScore(null);
                     }
                   }}
                   placeholder="Type your answer…"
-                  disabled={submitting || inputLocked}
+                  disabled={submitting}
                 />
                 <div className="btn-row">
+                  <button onClick={handleReveal} className="btn" type="button">Reveal</button>
                   <button onClick={doSubmit} className="btn primary" type="button" disabled={submitting}>Submit</button>
                 </div>
               </div>
+              {revealed && current && (
+                <div className="revealed">
+                  <div className="diff">
+                    <div>Similarity score: {checkScore !== null ? checkScore.toFixed(2) : '—'}</div>
+                    <div>You typed: {normalizeAnswerDisplay(input)}</div>
+                    <div>Expected: {normalizeAnswerDisplay(current.answer)}</div>
+                  </div>
+                  <div className="answer-line">Answer: <span>{current.answer}</span></div>
+                  <div className="review-row">
+                    <span>Were you correct?</span>
+                    <div className="spacer" />
+                    <button
+                      onClick={applyRight}
+                      className={`btn yes${autoChoice === 'YES' ? ' btn--default' : ''}`}
+                      type="button"
+                      disabled={submitting}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={applyWrong}
+                      className={`btn no${autoChoice === 'NO' ? ' btn--default' : ''}`}
+                      type="button"
+                      disabled={submitting}
+                    >
+                      No
+                    </button>
+                    <button onClick={applySkip} className="btn" type="button" disabled={submitting}>Skip</button>
+                  </div>
+                </div>
+              )}
             </>
           ) : phase === 'check' && current ? (
             <div className="revealed">
