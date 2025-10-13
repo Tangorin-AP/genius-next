@@ -96,6 +96,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const yesRef = useRef<HTMLButtonElement>(null);
   const noRef = useRef<HTMLButtonElement>(null);
+  const okRef = useRef<HTMLButtonElement>(null);
 
   const teardownSession = useCallback(() => {
     setSession({ scheduler: null, current: null });
@@ -312,20 +313,17 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     }
   };
 
-  const handleReveal = () => {
-    if (!current) return;
-    inputRef.current?.blur();
-    setAutoChoice(null);
-    setCheckScore(null);
-    setPhase('check');
-  };
-
   if (!open) return null;
 
   const isIntro = Boolean(current?.firstTime);
   const scoreDisplay = current ? formatScore(current.score) : '—';
-  const metaLabel = isIntro ? 'new word' : `score ${scoreDisplay}`;
+  const metaLabel = isIntro ? 'New item' : `Score ${scoreDisplay}`;
   const progressPercent = progress.total === 0 ? 0 : Math.min(1, progress.seen / progress.total);
+  const showAnswer = Boolean(current && (phase === 'review' || phase === 'check'));
+  const answerDisplay = showAnswer ? current?.answer ?? '' : '';
+  const disableEntry = submitting || phase === 'check';
+  const typedLabel = normalizeAnswerDisplay(input);
+  const expectedLabel = current ? normalizeAnswerDisplay(current.answer) : '';
 
   return (
     <div className="screen screen--study">
@@ -345,127 +343,121 @@ export default function StudyModal({ deckId }: { deckId: string }) {
             <div className="study-empty" role="alert">{error}</div>
           ) : !current ? (
             <div className="study-empty">You're all caught up for now. Try broadening the study settings to review more cards.</div>
-          ) : phase === 'review' && current ? (
-            <div className="study-intro">
-              <div className="study-intro__question">{current.question}</div>
-              <div className="study-intro__meta">
-                <span>{current.direction ?? 'AB'}</span>
-                <span aria-hidden="true">•</span>
-                <span>{metaLabel}</span>
+          ) : (
+            <div className="quiz-layout">
+              <div className="quiz-meta">
+                <div className="quiz-meta__primary">
+                  <span className="quiz-chip">{current.direction ?? 'AB'}</span>
+                  <span aria-hidden="true" className="quiz-meta__dot">•</span>
+                  <span className="quiz-meta__label">{metaLabel}</span>
+                </div>
+                <div className="quiz-meta__progress">{progress.seen} / {progress.total}</div>
               </div>
-              <div className="study-intro__answer">{current.answer}</div>
-              <p className="study-intro__note">Study the answer, type it once, then mark yourself ready. The card will reappear soon for recall.</p>
-              <div className="study-intro__input">
-                <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      void applyRight();
-                    } else if (event.key === 'Escape') {
-                      event.preventDefault();
-                      setInput(current.answer);
-                    }
-                  }}
-                  placeholder="Type it to lock it in…"
-                  disabled={submitting}
-                />
-              </div>
-              <div className="study-intro__footer">Progress {Math.round(progressPercent * 100)}%</div>
-              <div className="review-row review-row--intro">
-                <span>Ready to start recall?</span>
-                <div className="spacer" />
-                <button
-                  ref={yesRef}
-                  onClick={applyRight}
-                  className="btn yes btn--default"
-                  type="button"
-                  disabled={submitting}
-                >
-                  Right
-                </button>
-                <button onClick={applySkip} className="btn" type="button" disabled={submitting}>Skip</button>
-              </div>
-            </div>
-          ) : phase === 'quiz' && current ? (
-            <>
-              <div className="cue">{current.question}</div>
-              <div className="meta meta--study">
-                <span>{current.direction ?? 'AB'}</span>
-                <span aria-hidden="true">•</span>
-                <span>{metaLabel}</span>
-                <span aria-hidden="true">•</span>
-                <span>{progress.seen} / {progress.total}</span>
-              </div>
-              <div className="answer-block">
-                <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      void doSubmit();
-                    } else if (event.key === 'Escape') {
-                      event.preventDefault();
-                      setInput('');
-                      setAutoChoice(null);
-                      setCheckScore(null);
-                    }
-                  }}
-                  placeholder="Type your answer…"
-                  disabled={submitting}
-                />
-                <div className="btn-row">
-                  <button onClick={handleReveal} className="btn" type="button">Reveal</button>
-                  <button onClick={doSubmit} className="btn primary" type="button" disabled={submitting}>Submit</button>
+              <div className="quiz-progress">
+                <div className="quiz-progress__track">
+                  <div className="quiz-progress__fill" style={{ width: `${Math.round(progressPercent * 100)}%` }} />
                 </div>
               </div>
-            </>
-          ) : phase === 'check' && current ? (
-            <div className="revealed">
-              <div className="cue">{current.question}</div>
-              <div className="meta meta--study">
-                <span>{current.direction ?? 'AB'}</span>
-                <span aria-hidden="true">•</span>
-                <span>{metaLabel}</span>
-                <span aria-hidden="true">•</span>
-                <span>{progress.seen} / {progress.total}</span>
+              <div className="quiz-panels">
+                <div className="quiz-panel">
+                  <div className="quiz-panel__label">Cue</div>
+                  <div className="quiz-panel__content">{current.question}</div>
+                </div>
+                <div className={`quiz-panel quiz-panel--answer${showAnswer ? ' quiz-panel--answer-visible' : ''}`}>
+                  <div className="quiz-panel__label">Answer</div>
+                  <div className="quiz-panel__content">{answerDisplay || <>&nbsp;</>}</div>
+                </div>
               </div>
-              <div className="diff">
-                <div>Similarity score: {checkScore !== null ? checkScore.toFixed(2) : '—'}</div>
-                <div>You typed: {normalizeAnswerDisplay(input)}</div>
-                <div>Expected: {normalizeAnswerDisplay(current.answer)}</div>
+              <div className="quiz-entry">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      if (phase === 'review') {
+                        void applyRight();
+                      } else {
+                        void doSubmit();
+                      }
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault();
+                      if (phase === 'review') {
+                        setInput(current.answer);
+                      } else if (phase === 'quiz') {
+                        setInput('');
+                        setAutoChoice(null);
+                        setCheckScore(null);
+                      }
+                    }
+                  }}
+                  placeholder={phase === 'review' ? 'Type it once to remember…' : 'Type your answer and press Return'}
+                  disabled={disableEntry}
+                />
               </div>
-              <div className="answer-line">Answer: <span>{current.answer}</span></div>
-              <div className="review-row">
-                <span>Were you correct?</span>
-                <div className="spacer" />
-                <button
-                  ref={yesRef}
-                  onClick={applyRight}
-                  className={`btn yes${autoChoice === 'YES' ? ' btn--default' : ''}`}
-                  type="button"
-                  disabled={submitting}
-                >
-                  Yes
-                </button>
-                <button
-                  ref={noRef}
-                  onClick={applyWrong}
-                  className={`btn no${autoChoice === 'NO' ? ' btn--default' : ''}`}
-                  type="button"
-                  disabled={submitting}
-                >
-                  No
-                </button>
-                <button onClick={applySkip} className="btn" type="button" disabled={submitting}>Skip</button>
+              {phase === 'check' && (
+                <div className="quiz-diff">
+                  <div className="quiz-diff__row">
+                    <span>You typed</span>
+                    <span>{typedLabel}</span>
+                  </div>
+                  <div className="quiz-diff__row">
+                    <span>Expected</span>
+                    <span>{expectedLabel}</span>
+                  </div>
+                  <div className="quiz-diff__row">
+                    <span>Similarity</span>
+                    <span>{checkScore !== null ? checkScore.toFixed(2) : '—'}</span>
+                  </div>
+                </div>
+              )}
+              <div className={`quiz-footer quiz-footer--${phase}`}>
+                {phase === 'review' ? (
+                  <>
+                    <div className="quiz-footer__prompt">Remember this item.</div>
+                    <div className="quiz-footer__actions">
+                      <button
+                        ref={okRef}
+                        onClick={applyRight}
+                        className="btn btn--default"
+                        type="button"
+                        disabled={submitting}
+                      >
+                        OK
+                      </button>
+                    </div>
+                  </>
+                ) : phase === 'check' ? (
+                  <>
+                    <div className="quiz-footer__prompt">Did you get it right?</div>
+                    <div className="quiz-footer__actions">
+                      <button
+                        ref={yesRef}
+                        onClick={applyRight}
+                        className={`btn yes${autoChoice === 'YES' ? ' btn--default' : ''}`}
+                        type="button"
+                        disabled={submitting}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        ref={noRef}
+                        onClick={applyWrong}
+                        className={`btn no${autoChoice === 'NO' ? ' btn--default' : ''}`}
+                        type="button"
+                        disabled={submitting}
+                      >
+                        No
+                      </button>
+                      <button onClick={applySkip} className="btn" type="button" disabled={submitting}>Skip</button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="quiz-footer__spacer" />
+                )}
               </div>
             </div>
-          ) : (
-            <div className="study-empty">You're all caught up for now. Try broadening the study settings to review more cards.</div>
           )}
         </div>
       </div>
