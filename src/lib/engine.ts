@@ -16,6 +16,7 @@ export interface ChooseOptions {
   count: number;
   minimumScore?: number;
   mValue?: number;
+  directions?: Direction[];
 }
 
 export interface SessionPlan {
@@ -139,9 +140,17 @@ function chooseByScore(
   return selected;
 }
 
-export async function chooseAssociations({ deckId, count, minimumScore = -1, mValue = 1 }: ChooseOptions): Promise<SessionPlan> {
+export async function chooseAssociations({
+  deckId,
+  count,
+  minimumScore = -1,
+  mValue = 1,
+  directions = ['AB'],
+}: ChooseOptions): Promise<SessionPlan> {
+  const activeDirections = directions.length > 0 ? directions : ['AB' as Direction];
+
   const associations = await prisma.association.findMany({
-    where: { pair: { deckId } },
+    where: { pair: { deckId }, direction: { in: activeDirections } },
     include: { pair: true },
   });
 
