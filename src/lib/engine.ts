@@ -17,6 +17,13 @@ export interface ChooseOptions {
   mValue?: number;
 }
 
+export interface SessionPlan {
+  due: AssocView[];
+  pool: AssocView[];
+  available: number;
+  requested: number;
+}
+
 function factorial(n: number): number {
   if (n <= 1) return 1;
   let value = 1;
@@ -38,8 +45,13 @@ function poissonValue(x: number, m: number): number {
 
 type AssociationRecord = Prisma.AssociationGetPayload<{ include: { pair: true } }>;
 
-function randomizeAssociations(list: AssociationRecord[]): AssociationRecord[] {
-  return [...list].sort(() => (Math.random() < 0.5 ? -1 : 1));
+function fisherYates<T>(list: T[]): T[] {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 function importanceOf(assoc: AssociationRecord): number {
@@ -52,120 +64,117 @@ function chooseByScore(
   associations: AssociationRecord[],
   count: number,
   mValue: number,
-  minScore: number,
-  maxScore: number,
 ): AssociationRecord[] {
   if (associations.length === 0 || count <= 0) return [];
-  if (associations.length <= count) return associations.slice(0, count);
 
-  const bucketCount = maxScore - minScore + 1;
-  const buckets: AssociationRecord[][] = Array.from({ length: bucketCount }, () => []);
-
+  const buckets = new Map<number, AssociationRecord[]>();
   for (const assoc of associations) {
-    const score = assoc.score;
-    const index = Math.max(0, Math.min(bucketCount - 1, score - minScore));
-    buckets[index].push(assoc);
+    const key = Math.max(0, assoc.score ?? 0);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(assoc);
+    else buckets.set(key, [assoc]);
   }
 
-  const probabilities = buckets.map((_, bucketIndex) => poissonValue(bucketIndex, Math.max(0, mValue)));
-  const totalProbability = probabilities.reduce((acc, value) => acc + value, 0);
+  const bucketKeys = [...buckets.keys()].sort((a, b) => a - b);
   const selected: AssociationRecord[] = [];
 
-  if (totalProbability <= 0) {
-    for (const bucket of buckets) {
-      for (const assoc of bucket) {
-        if (selected.length >= count) return selected;
-        selected.push(assoc);
-      }
-    }
-    return selected;
-  }
+  while (selected.length < count) {
+    const availableBuckets = bucketKeys
+      .map((key) => ({ key, items: buckets.get(key)! }))
+      .filter(({ items }) => items.length > 0);
 
-  let safety = 0;
-  while (selected.length < count && safety < 5000) {
-    safety++;
-    let x = Math.random() * totalProbability;
-    let chosenBucketIndex = -1;
-    for (let b = 0; b < bucketCount; b++) {
-      const weight = probabilities[b];
-      if (weight <= 0) {
-        continue;
+    if (availableBuckets.length === 0) break;
+
+    const weights = availableBuckets.map(({ key }) => poissonValue(key, Math.max(0, mValue)));
+    const totalWeight = weights.reduce((acc, value) => acc + value, 0);
+
+    if (totalWeight <= 0) {
+      for (const bucket of availableBuckets) {
+        while (bucket.items.length && selected.length < count) {
+          selected.push(bucket.items.shift()!);
+        }
       }
-      if (x < weight) {
-        chosenBucketIndex = b;
+      break;
+    }
+
+    let ticket = Math.random() * totalWeight;
+    let chosenIndex = 0;
+    for (let i = 0; i < availableBuckets.length; i += 1) {
+      const weight = weights[i];
+      if (ticket < weight) {
+        chosenIndex = i;
         break;
       }
-      x -= weight;
+      ticket -= weight;
     }
 
-    if (chosenBucketIndex === -1) {
-      const fallbackIndex = buckets.findIndex(bucket => bucket.length > 0);
-      if (fallbackIndex === -1) break;
-      selected.push(buckets[fallbackIndex].shift()!);
-      continue;
-    }
-
-    const bucket = buckets[chosenBucketIndex];
-    if (bucket.length === 0) {
-      continue;
-    }
-    selected.push(bucket.shift()!);
-  }
-
-  if (selected.length < count) {
-    for (const bucket of buckets) {
-      while (bucket.length && selected.length < count) {
-        selected.push(bucket.shift()!);
-      }
-    }
+    const bucket = availableBuckets[chosenIndex];
+    const picked = bucket.items.shift();
+    if (picked) selected.push(picked);
   }
 
   return selected;
 }
 
-export async function chooseAssociations({ deckId, count, minimumScore = -1, mValue = 1 }: ChooseOptions): Promise<AssocView[]> {
+export async function chooseAssociations({ deckId, count, minimumScore = -1, mValue = 1 }: ChooseOptions): Promise<SessionPlan> {
   const associations = await prisma.association.findMany({
     where: { pair: { deckId } },
     include: { pair: true },
   });
 
   const now = new Date();
-  const eligible = associations.filter(assoc => assoc.score >= minimumScore);
+  const dueQueue: { assoc: AssociationRecord; dueDate: Date | null }[] = [];
+  const unscheduled: AssociationRecord[] = [];
 
-  const due = eligible
-    .filter(assoc => assoc.dueAt && assoc.dueAt <= now)
-    .sort((a, b) => a.dueAt!.getTime() - b.dueAt!.getTime());
+  for (const assoc of associations) {
+    const pair = assoc.pair as { disabled?: boolean } | null;
+    if (pair && pair.disabled) continue;
+    const score = typeof assoc.score === 'number' ? assoc.score : -1;
+    if (score < minimumScore) continue;
 
-  if (due.length >= count) {
-    return due.slice(0, count).map(toAssocView);
+    const dueDate = assoc.dueAt ? new Date(assoc.dueAt) : null;
+    const clone: AssociationRecord = {
+      ...assoc,
+      score,
+      dueAt: dueDate,
+    };
+
+    if (dueDate) {
+      if (dueDate.getTime() <= now.getTime()) {
+        clone.dueAt = null;
+      }
+      dueQueue.push({ assoc: clone, dueDate });
+    }
+
+    if (!dueDate || dueDate.getTime() <= now.getTime()) {
+      unscheduled.push(clone);
+    }
   }
 
-  const remainingBudget = count - due.length;
-  const pool = eligible.filter(assoc => !(assoc.dueAt && assoc.dueAt <= now));
+  dueQueue.sort((a, b) => {
+    const aTime = a.dueDate ? a.dueDate.getTime() : -Infinity;
+    const bTime = b.dueDate ? b.dueDate.getTime() : -Infinity;
+    return aTime - bTime;
+  });
 
-  const randomized = randomizeAssociations(pool);
-  const orderedByImportance = randomized.sort((a, b) => {
+  const shuffled = fisherYates(unscheduled);
+  const ordered = shuffled.sort((a, b) => {
     const impA = importanceOf(a);
     const impB = importanceOf(b);
     if (impA === impB) return 0;
     return impA > impB ? -1 : 1;
   });
 
-  let minScore = Infinity;
-  let maxScore = -Infinity;
-  for (const assoc of orderedByImportance) {
-    minScore = Math.min(minScore, assoc.score);
-    maxScore = Math.max(maxScore, assoc.score);
-  }
+  const dueIds = new Set(dueQueue.map(({ assoc }) => assoc.id));
+  const poolCandidates = ordered.filter((assoc) => !dueIds.has(assoc.id));
+  const available = poolCandidates.length;
+  const requested = Math.min(Math.max(0, count), available);
+  const sampled = chooseByScore(poolCandidates, requested, mValue);
 
-  if (!Number.isFinite(minScore) || !Number.isFinite(maxScore)) {
-    minScore = 0;
-    maxScore = 0;
-  }
+  const dueViews = dueQueue.map(({ assoc }) => toAssocView(assoc));
+  const poolViews = sampled.map(toAssocView);
 
-  const chosen = chooseByScore(orderedByImportance, remainingBudget, mValue, minScore, maxScore);
-  const finalList = [...due, ...chosen].slice(0, count);
-  return finalList.map(toAssocView);
+  return { due: dueViews, pool: poolViews, available, requested };
 }
 
 function toAssocView(a: AssociationRecord): AssocView {
