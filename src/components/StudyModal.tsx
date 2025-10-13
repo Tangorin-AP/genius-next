@@ -57,7 +57,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<SessionState>({ scheduler: null, current: null });
   const [input, setInput] = useState('');
-  const [revealed, setRevealed] = useState(false);
+  const [phase, setPhase] = useState<'review' | 'quiz' | 'check'>('quiz');
   const [autoChoice, setAutoChoice] = useState<'YES' | 'NO' | null>(null);
   const [checkScore, setCheckScore] = useState<number | null>(null);
   const [progress, setProgress] = useState({ seen: 0, total: 0 });
@@ -67,11 +67,30 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const paramsRef = useRef<StudyParams>(DEFAULT_PARAMS);
   const inputRef = useRef<HTMLInputElement>(null);
+  const yesRef = useRef<HTMLButtonElement>(null);
+  const noRef = useRef<HTMLButtonElement>(null);
+
+  const teardownSession = useCallback(() => {
+    setSession({ scheduler: null, current: null });
+    setInput('');
+    setAutoChoice(null);
+    setCheckScore(null);
+    setActionError(null);
+    setError(null);
+    setLoading(false);
+    setPhase('quiz');
+    setProgress({ seen: 0, total: 0 });
+    inputRef.current?.blur();
+  }, []);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    teardownSession();
+  }, [teardownSession]);
 
   const takeNextCard = useCallback((scheduler: SessionScheduler | null) => {
     if (!scheduler) {
-      setSession({ scheduler: null, current: null });
-      setProgress({ seen: 0, total: 0 });
+      teardownSession();
       return;
     }
     const next = scheduler.next();
@@ -80,18 +99,20 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     setSession({ scheduler, current: next ?? null });
     setActionError(null);
     if (next) {
-      setInput(next.firstTime ? next.answer : '');
-      setRevealed(next.firstTime);
+      const isReview = Boolean(next.firstTime);
+      setPhase(isReview ? 'review' : 'quiz');
+      setInput(isReview ? next.answer : '');
       setAutoChoice(null);
       setCheckScore(null);
       setTimeout(() => inputRef.current?.focus(), 0);
     } else {
+      setPhase('quiz');
       setInput('');
-      setRevealed(false);
       setAutoChoice(null);
       setCheckScore(null);
+      setTimeout(() => close(), 0);
     }
-  }, []);
+  }, [close, teardownSession]);
 
   useEffect(() => {
     const onSubmitFromToolbar = (e: Event) => {
@@ -146,13 +167,17 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (phase !== 'check') return;
+    if (autoChoice === 'YES') {
+      yesRef.current?.focus();
+    } else if (autoChoice === 'NO') {
+      noRef.current?.focus();
+    }
+  }, [phase, autoChoice]);
+
   const scheduler = session.scheduler;
   const current = session.current;
-
-  const close = () => {
-    setOpen(false);
-    setSession({ scheduler: null, current: null });
-  };
 
   const refreshProgress = () => {
     if (!scheduler) {
@@ -169,6 +194,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   const confirmIntro = async () => {
     if (!current || !scheduler || submitting) return;
+    inputRef.current?.blur();
     setSubmitting(true);
     try {
       const res = await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'WRONG' }) });
@@ -186,6 +212,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   const applyRight = async () => {
     if (!current || !scheduler || submitting) return;
+    inputRef.current?.blur();
     setSubmitting(true);
     try {
       const res = await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'RIGHT' }) });
@@ -203,6 +230,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   const applyWrong = async () => {
     if (!current || !scheduler || submitting) return;
+    inputRef.current?.blur();
     setSubmitting(true);
     try {
       const res = await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'WRONG' }) });
@@ -220,6 +248,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   const applySkip = async () => {
     if (!current || !scheduler || submitting) return;
+    inputRef.current?.blur();
     setSubmitting(true);
     try {
       const res = await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'SKIP' }) });
@@ -246,12 +275,14 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       const { mode } = paramsRef.current;
       const score = await computeCorrectness(current.answer, input, mode);
       if (score >= 0.999) {
+        setSubmitting(false);
         await applyRight();
         return;
       }
+      inputRef.current?.blur();
       setCheckScore(score);
       setAutoChoice(score >= PASS_THRESHOLD ? 'YES' : 'NO');
-      setRevealed(true);
+      setPhase('check');
     } finally {
       setSubmitting(false);
     }
@@ -259,9 +290,10 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   const handleReveal = () => {
     if (!current) return;
-    setRevealed(true);
+    inputRef.current?.blur();
     setAutoChoice(null);
     setCheckScore(null);
+    setPhase('check');
   };
 
   if (!open) return null;
@@ -338,16 +370,10 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
-                      if (revealed) {
-                        if (autoChoice === 'YES') void applyRight();
-                        else void applyWrong();
-                      } else {
-                        void doSubmit();
-                      }
+                      void doSubmit();
                     } else if (event.key === 'Escape') {
                       event.preventDefault();
                       setInput('');
-                      setRevealed(false);
                       setAutoChoice(null);
                       setCheckScore(null);
                     }
@@ -360,37 +386,6 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   <button onClick={doSubmit} className="btn primary" type="button" disabled={submitting}>Submit</button>
                 </div>
               </div>
-              {revealed && current && (
-                <div className="revealed">
-                  <div className="diff">
-                    <div>Similarity score: {checkScore !== null ? checkScore.toFixed(2) : '—'}</div>
-                    <div>You typed: {normalizeAnswerDisplay(input)}</div>
-                    <div>Expected: {normalizeAnswerDisplay(current.answer)}</div>
-                  </div>
-                  <div className="answer-line">Answer: <span>{current.answer}</span></div>
-                  <div className="review-row">
-                    <span>Were you correct?</span>
-                    <div className="spacer" />
-                    <button
-                      onClick={applyRight}
-                      className={`btn yes${autoChoice === 'YES' ? ' btn--default' : ''}`}
-                      type="button"
-                      disabled={submitting}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      onClick={applyWrong}
-                      className={`btn no${autoChoice === 'NO' ? ' btn--default' : ''}`}
-                      type="button"
-                      disabled={submitting}
-                    >
-                      No
-                    </button>
-                    <button onClick={applySkip} className="btn" type="button" disabled={submitting}>Skip</button>
-                  </div>
-                </div>
-              )}
             </>
           ) : phase === 'check' && current ? (
             <div className="revealed">
@@ -412,6 +407,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                 <span>Were you correct?</span>
                 <div className="spacer" />
                 <button
+                  ref={yesRef}
                   onClick={applyRight}
                   className={`btn yes${autoChoice === 'YES' ? ' btn--default' : ''}`}
                   type="button"
@@ -420,6 +416,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   Yes
                 </button>
                 <button
+                  ref={noRef}
                   onClick={applyWrong}
                   className={`btn no${autoChoice === 'NO' ? ' btn--default' : ''}`}
                   type="button"

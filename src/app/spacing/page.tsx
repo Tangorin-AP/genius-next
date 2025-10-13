@@ -166,6 +166,89 @@ export default function SpacingGuidePage() {
             </li>
           </ul>
         </section>
+
+        <section className="article__section">
+          <h2>4. Detailed learning flow</h2>
+          <ol>
+            <li>
+              <p>
+                <strong>Starting the session.</strong> When the quiz begins, the controller stores the
+                prepared <code>GeniusAssociationEnumerator</code>, presents the welcome panel, and runs the
+                quiz window modally so focus remains on the session until it closes. After the window
+                loads, other document windows hide, the distraction-reducing backdrop optionally fades
+                in, and the progress indicator primes itself with the enumerator&apos;s queued card count.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Fetching the next association.</strong> Each call to <code>runQuizOnce</code>
+                advances the progress indicator, repeatedly asks the enumerator for the next
+                association, and skips anything lacking an answer string before binding the chosen
+                association to the UI widgets. The enumerator filters out disabled cards, clears
+                expired due dates, randomises the surviving set, weights by pair importance, and caches
+                the chosen subset so the session keeps a stable card list.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Presenting new (“review”) cards.</strong> When the fetched association reports
+                <code>isFirstTime</code>, the controller shows the answer immediately, enables the input
+                field with that answer prefilled, switches the view to the review tab, and (when
+                enabled) plays the “new card” sound to signal a read-through exposure. Pressing OK in
+                this state routes through <code>handleEntry</code>, which marks the card wrong so its
+                score becomes 0 and schedules it almost immediately (<code>5^0</code> seconds) for active
+                recall on the next loop.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Presenting learned (“quiz”) cards.</strong> Associations that already have a
+                score hide the answer, clear and focus the entry field, and switch to the quiz tab so
+                the learner must recall the answer. When the learner submits, the controller reveals the
+                correct answer for comparison, locks the entry field, and enters the check tab before
+                grading the input.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Automated grading and feedback.</strong> Grading computes a correctness score
+                according to the selected mode: exact match, case-insensitive match, or fuzzy
+                similarity via the custom string comparator, yielding a float between 0 and 1. A
+                perfect <code>1.0</code> plays the success sound (if enabled), increments the score,
+                reschedules the card exponentially farther out, and immediately advances to the next
+                association. Non-perfect results optionally render a highlighted diff, set the default
+                button to “Yes” or “No” depending on whether the score exceeds 0.5, and play the
+                corresponding audio cue while awaiting confirmation or override.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Manual overrides and skips.</strong> The Yes/No/Skip controls and keyboard
+                shortcuts end any active editing, forward to the enumerator to mark the card right,
+                wrong, or skipped, and immediately queue the next association. Skipping clears both
+                score and due date so the card returns to the unseen pool for later selection.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Scheduling and recall timing.</strong> Every grading call flows into
+                <code>_scheduleAssociation</code>, which sets the due date to “now plus
+                <code>5^score</code> seconds” and inserts the card into a due-date–ordered queue so higher
+                scores wait exponentially longer before resurfacing. Each request for
+                <code>nextAssociation</code> first checks that queue and returns any card whose due time
+                has arrived before falling back to the unscheduled list, guaranteeing recently reviewed
+                items reappear as soon as they come due.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Ending the session.</strong> When the enumerator runs out of cards, the
+                controller closes the quiz window, triggering teardown: the backdrop fades out, normal
+                document windows return, and modal execution stops to end the learning run cleanly.
+              </p>
+            </li>
+          </ol>
+        </section>
       </article>
     </main>
   );
