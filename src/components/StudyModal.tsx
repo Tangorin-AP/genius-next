@@ -129,7 +129,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     if (next) {
       const isReview = Boolean(next.firstTime);
       setPhase(isReview ? 'review' : 'quiz');
-      setInput(isReview ? next.answer : '');
+      setInput(isReview ? next.response : '');
       setAutoChoice(null);
       setCheckScore(null);
       setTimeout(() => {
@@ -298,7 +298,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     setSubmitting(true);
     try {
       const { mode } = paramsRef.current;
-      const score = await computeCorrectness(current.answer, input, mode);
+      const score = await computeCorrectness(current.response, input, mode);
       if (score >= 0.999) {
         setSubmitting(false);
         await applyRight();
@@ -320,10 +320,10 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const metaLabel = isIntro ? 'New item' : `Score ${scoreDisplay}`;
   const progressPercent = progress.total === 0 ? 0 : Math.min(1, progress.seen / progress.total);
   const showAnswer = Boolean(current && (phase === 'review' || phase === 'check'));
-  const answerDisplay = showAnswer ? current?.answer ?? '' : '';
+  const answerDisplay = showAnswer ? current?.response ?? '' : '';
   const disableEntry = submitting || phase === 'check';
   const typedLabel = normalizeAnswerDisplay(input);
-  const expectedLabel = current ? normalizeAnswerDisplay(current.answer) : '';
+  const expectedLabel = current ? normalizeAnswerDisplay(current.response) : '';
 
   return (
     <div className="screen screen--study">
@@ -361,7 +361,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
               <div className="quiz-panels">
                 <div className="quiz-panel">
                   <div className="quiz-panel__label">Cue</div>
-                  <div className="quiz-panel__content">{current.question}</div>
+                  <div className="quiz-panel__content">{current.cue}</div>
                 </div>
                 <div className={`quiz-panel quiz-panel--answer${showAnswer ? ' quiz-panel--answer-visible' : ''}`}>
                   <div className="quiz-panel__label">Answer</div>
@@ -384,7 +384,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                     } else if (event.key === 'Escape') {
                       event.preventDefault();
                       if (phase === 'review') {
-                        setInput(current.answer);
+                        setInput(current.response);
                       } else if (phase === 'quiz') {
                         setInput('');
                         setAutoChoice(null);

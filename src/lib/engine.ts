@@ -1,6 +1,7 @@
 
 import type { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
+import { associationSides } from './association';
 import { AssocView, Direction } from './types';
 
 const SEC = 1000;
@@ -51,10 +52,6 @@ function scoreValue(assoc: { score: number | null }): number {
   return typeof raw === 'number' ? raw : -1;
 }
 
-function normalizedScore(score: number): number {
-  return Math.max(0, score);
-}
-
 function fisherYates<T>(list: T[]): T[] {
   const copy = [...list];
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -84,56 +81,58 @@ function chooseByScore(
     return impA > impB ? -1 : 1;
   });
 
-  const buckets = new Map<number, AssociationRecord[]>();
-  let minBucket = Number.POSITIVE_INFINITY;
-  let maxBucket = Number.NEGATIVE_INFINITY;
+  let minimumScore = Number.POSITIVE_INFINITY;
+  let maximumScore = Number.NEGATIVE_INFINITY;
+  const resolvedScores: number[] = [];
 
   for (const assoc of ordered) {
-    const bucketKey = normalizedScore(scoreValue(assoc));
-    minBucket = Math.min(minBucket, bucketKey);
-    maxBucket = Math.max(maxBucket, bucketKey);
-    const bucket = buckets.get(bucketKey);
-    if (bucket) bucket.push(assoc);
-    else buckets.set(bucketKey, [assoc]);
+    const score = scoreValue(assoc);
+    resolvedScores.push(score);
+    if (score < minimumScore) minimumScore = score;
+    if (score > maximumScore) maximumScore = score;
   }
 
-  if (!Number.isFinite(minBucket) || !Number.isFinite(maxBucket)) {
-    minBucket = 0;
-    maxBucket = 0;
+  if (!Number.isFinite(minimumScore) || !Number.isFinite(maximumScore)) {
+    minimumScore = 0;
+    maximumScore = 0;
   }
 
-  const bucketKeys: number[] = [];
-  for (let key = minBucket; key <= maxBucket; key += 1) {
-    bucketKeys.push(key);
-    if (!buckets.has(key)) buckets.set(key, []);
+  const bucketCount = Math.max(1, Math.floor(maximumScore - minimumScore + 1));
+  const buckets: AssociationRecord[][] = Array.from({ length: bucketCount }, () => []);
+
+  for (let i = 0; i < ordered.length; i += 1) {
+    const score = resolvedScores[i];
+    const index = Math.max(0, Math.min(bucketCount - 1, score - minimumScore));
+    buckets[index].push(ordered[i]);
   }
 
-  const selected: AssociationRecord[] = [];
   const safeM = Math.max(0, mValue);
+  const weights = buckets.map((_, idx) => poissonValue(idx, safeM));
+  const desired = Math.min(count, ordered.length);
+  const selected: AssociationRecord[] = [];
 
-  while (selected.length < count) {
-    const availableKeys = bucketKeys.filter((key) => (buckets.get(key)?.length ?? 0) > 0);
-    if (availableKeys.length === 0) break;
+  const hasRemaining = () => buckets.some((bucket) => bucket.length > 0);
 
-    const weights = availableKeys.map((key) => poissonValue(key, safeM));
-    const totalWeight = weights.reduce((acc, value) => acc + value, 0);
+  while (selected.length < desired && hasRemaining()) {
+    let x = Math.random();
+    let chosen: AssociationRecord | null = null;
 
-    let chosenKey = availableKeys[0];
-    if (totalWeight > 0) {
-      let ticket = Math.random() * totalWeight;
-      for (let i = 0; i < availableKeys.length; i += 1) {
-        const weight = weights[i];
-        if (ticket < weight) {
-          chosenKey = availableKeys[i];
+    for (let idx = 0; idx < buckets.length; idx += 1) {
+      const weight = weights[idx];
+      if (x < weight) {
+        const bucket = buckets[idx];
+        if (bucket.length > 0) {
+          chosen = bucket.shift()!;
           break;
         }
-        ticket -= weight;
       }
+      x -= weight;
     }
 
-    const bucket = buckets.get(chosenKey);
-    const picked = bucket?.shift();
-    if (picked) selected.push(picked);
+    if (chosen) {
+      selected.push(chosen);
+      continue;
+    }
   }
 
   return selected;
@@ -196,15 +195,19 @@ export async function chooseAssociations({ deckId, count, minimumScore = -1, mVa
 
 function toAssocView(a: AssociationRecord): AssocView {
   const direction = a.direction as Direction;
-  const question = direction === 'AB' ? a.pair.question : a.pair.answer;
-  const answer = direction === 'AB' ? a.pair.answer : a.pair.question;
+  const { cue, response } = associationSides(direction, {
+    question: a.pair.question,
+    answer: a.pair.answer,
+  });
   const score = scoreValue(a);
   return {
     id: a.id,
     pairId: a.pairId,
     direction,
-    question,
-    answer,
+    cue,
+    response,
+    question: cue,
+    answer: response,
     score,
     dueAt: a.dueAt ?? null,
     firstTime: score < 0,

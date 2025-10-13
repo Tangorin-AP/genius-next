@@ -153,6 +153,6 @@ export class SessionScheduler {
   }
 
   private shouldSkip(card: SessionCard): boolean {
-    return card.answer.trim() === '';
+    return card.response.trim() === '';
   }
 }
