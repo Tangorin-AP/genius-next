@@ -289,7 +289,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
             <div className="study-empty" role="alert">{error}</div>
           ) : !current ? (
             <div className="study-empty">You're all caught up for now. Try broadening the study settings to review more cards.</div>
-          ) : isIntro ? (
+          ) : phase === 'review' && current ? (
             <div className="study-intro">
               <div className="study-intro__question">{current.question}</div>
               <div className="study-intro__meta">
@@ -320,7 +320,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
               </div>
               <div className="study-intro__footer">Progress {Math.round(progressPercent * 100)}%</div>
             </div>
-          ) : (
+          ) : phase === 'quiz' && current ? (
             <>
               <div className="cue">{current.question}</div>
               <div className="meta meta--study">
@@ -392,6 +392,46 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                 </div>
               )}
             </>
+          ) : phase === 'check' && current ? (
+            <div className="revealed">
+              <div className="cue">{current.question}</div>
+              <div className="meta meta--study">
+                <span>{current.direction ?? 'AB'}</span>
+                <span aria-hidden="true">•</span>
+                <span>{metaLabel}</span>
+                <span aria-hidden="true">•</span>
+                <span>{progress.seen} / {progress.total}</span>
+              </div>
+              <div className="diff">
+                <div>Similarity score: {checkScore !== null ? checkScore.toFixed(2) : '—'}</div>
+                <div>You typed: {normalizeAnswerDisplay(input)}</div>
+                <div>Expected: {normalizeAnswerDisplay(current.answer)}</div>
+              </div>
+              <div className="answer-line">Answer: <span>{current.answer}</span></div>
+              <div className="review-row">
+                <span>Were you correct?</span>
+                <div className="spacer" />
+                <button
+                  onClick={applyRight}
+                  className={`btn yes${autoChoice === 'YES' ? ' btn--default' : ''}`}
+                  type="button"
+                  disabled={submitting}
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={applyWrong}
+                  className={`btn no${autoChoice === 'NO' ? ' btn--default' : ''}`}
+                  type="button"
+                  disabled={submitting}
+                >
+                  No
+                </button>
+                <button onClick={applySkip} className="btn" type="button" disabled={submitting}>Skip</button>
+              </div>
+            </div>
+          ) : (
+            <div className="study-empty">You're all caught up for now. Try broadening the study settings to review more cards.</div>
           )}
         </div>
       </div>
