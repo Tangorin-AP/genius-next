@@ -139,7 +139,10 @@ function chooseByScore(
 
 export async function chooseAssociations({ deckId, count, minimumScore = -1, mValue = 1 }: ChooseOptions): Promise<SessionPlan> {
   const associations = await prisma.association.findMany({
-    where: { pair: { deckId } },
+    where: {
+      pair: { deckId },
+      direction: 'AB',
+    },
     include: { pair: true },
   });
 

@@ -360,7 +360,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
               </div>
               <div className="quiz-panels">
                 <div className="quiz-panel">
-                  <div className="quiz-panel__label">Cue</div>
+                  <div className="quiz-panel__label">Question</div>
                   <div className="quiz-panel__content">{current.question}</div>
                 </div>
                 <div className={`quiz-panel quiz-panel--answer${showAnswer ? ' quiz-panel--answer-visible' : ''}`}>
