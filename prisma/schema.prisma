@@ -24,6 +24,7 @@ model Pair {
   deck      Deck    @relation(fields: [deckId], references: [id], onDelete: Cascade)
   question  String
   answer    String
+  importance Int    @default(0)
   group     String? // carries through from Genius "group"
   type      String? // carries through from Genius "type"
   createdAt DateTime @default(now())
@@ -42,7 +43,7 @@ model Association {
   pairId    String
   pair      Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
   direction Direction
-  score     Int      @default(-1) // -1 = unseen, 0 = wrong, 1+ = streak
+  score     Int?
   dueAt     DateTime?
   firstTime Boolean  @default(true)
   createdAt DateTime @default(now())

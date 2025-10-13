@@ -7,13 +7,13 @@ import { computeCorrectness, defaultMatchingMode, MatchingMode, normalizeAnswerD
 const PASS_THRESHOLD = 0.5;
 
 type StudyParams = {
-  m: number;
-  min: number;
+  slider: number;
+  minimumScore: number;
   count: number;
   mode: MatchingMode;
 };
 
-const DEFAULT_PARAMS: StudyParams = { m: 0, min: -1, count: 30, mode: defaultMatchingMode() };
+const DEFAULT_PARAMS: StudyParams = { slider: 0, minimumScore: -1, count: 13, mode: defaultMatchingMode() };
 
 type SessionState = {
   scheduler: SessionScheduler | null;
@@ -25,10 +25,27 @@ function readParams(): StudyParams {
     const raw = localStorage.getItem('studyParams');
     if (!raw) return DEFAULT_PARAMS;
     const parsed = JSON.parse(raw);
+    let slider: number;
+    if (typeof parsed.slider === 'number') {
+      slider = parsed.slider;
+    } else if (typeof parsed.m === 'number') {
+      slider = (parsed.m / 2) * 100;
+    } else {
+      slider = DEFAULT_PARAMS.slider;
+    }
+    if (!Number.isFinite(slider)) slider = DEFAULT_PARAMS.slider;
+    slider = Math.max(0, Math.min(100, Math.round(slider)));
+    const minimumScore =
+      typeof parsed.minimumScore === 'number'
+        ? parsed.minimumScore
+        : typeof parsed.min === 'number'
+          ? parsed.min
+          : DEFAULT_PARAMS.minimumScore;
+    const countValue = typeof parsed.count === 'number' ? parsed.count : DEFAULT_PARAMS.count;
     return {
-      m: typeof parsed.m === 'number' ? parsed.m : DEFAULT_PARAMS.m,
-      min: typeof parsed.min === 'number' ? parsed.min : DEFAULT_PARAMS.min,
-      count: typeof parsed.count === 'number' ? parsed.count : DEFAULT_PARAMS.count,
+      slider,
+      minimumScore,
+      count: Number.isFinite(countValue) ? Math.max(1, Math.round(countValue)) : DEFAULT_PARAMS.count,
       mode: typeof parsed.mode === 'string' ? (parsed.mode as MatchingMode) : DEFAULT_PARAMS.mode,
     };
   } catch {
@@ -37,7 +54,17 @@ function readParams(): StudyParams {
 }
 
 async function fetchSelection(deckId: string, params: StudyParams): Promise<RawSessionPlan> {
-  const url = `/api/select?deckId=${deckId}&m=${params.m}&min=${params.min}&count=${params.count}`;
+  const slider = Math.max(0, Math.min(100, Math.round(params.slider)));
+  const m = 2 * (slider / 100);
+  const minimumScore = slider >= 100 ? 0 : params.minimumScore;
+  const count = Math.max(1, Math.round(params.count));
+  const search = new URLSearchParams({
+    deckId,
+    m: String(m),
+    min: String(minimumScore),
+    count: String(count),
+  });
+  const url = `/api/select?${search.toString()}`;
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error('selection failed');
   return res.json();

@@ -203,7 +203,7 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
           question: '',
           answer: '',
           associationId: null,
-          score: 0,
+          score: -1,
           originalIndex: prev.length + 1,
           dirty: false,
           deleted: false,
@@ -562,7 +562,7 @@ function RowForm({
                 onKeyDown={handleScoreKey}
               />
             ) : (
-              <span className="score-chip__value">{clampScore(row.score)}</span>
+              <span className="score-chip__value">{clampScore(row.score) < 0 ? '—' : clampScore(row.score)}</span>
             )}
           </div>
           <button
@@ -598,17 +598,21 @@ function determineDirty(row: RowState, base?: Row) {
 
 function clampScore(value: number) {
   if (!Number.isFinite(value)) {
-    return 0;
+    return -1;
   }
+  if (value < 0) return -1;
   return Math.max(0, Math.min(10, Math.round(value)));
 }
 
 function scoreToPercent(score: number) {
-  return `${(clampScore(score) / 10) * 100}%`;
+  const normalized = clampScore(score);
+  if (normalized < 0) return '0%';
+  return `${(normalized / 10) * 100}%`;
 }
 
 function scoreToColor(score: number) {
-  const clamped = clampScore(score);
+  const normalized = clampScore(score);
+  const clamped = normalized < 0 ? 0 : normalized;
   const hue = (clamped / 10) * 120; // 0 = red, 120 = green
   return `hsl(${Math.round(hue)}, 70%, 50%)`;
 }

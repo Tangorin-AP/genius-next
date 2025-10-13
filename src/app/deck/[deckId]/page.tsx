@@ -15,10 +15,16 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
   const deck = await prisma.deck.findUnique({ where: { id: params.deckId }, include: { pairs: { include: { associations: true } } } });
   if (!deck) return <div>Deck not found</div>;
 
-  const rows = deck.pairs.map(p=>{
-    const ab = p.associations.find(a=>a.direction==='AB');
-    const score = ab?.score ?? 0;
-    return { pairId: p.id, question: p.question, answer: p.answer, associationId: ab?.id ?? null, score: score < 0 ? 0 : score };
+  const rows = deck.pairs.map((p) => {
+    const ab = p.associations.find((a) => a.direction === 'AB');
+    const rawScore = typeof ab?.score === 'number' ? ab.score : -1;
+    return {
+      pairId: p.id,
+      question: p.question,
+      answer: p.answer,
+      associationId: ab?.id ?? null,
+      score: rawScore,
+    };
   });
 
   return (
