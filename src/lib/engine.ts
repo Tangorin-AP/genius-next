@@ -1,6 +1,7 @@
 
 import type { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
+import { associationSides } from './association';
 import { AssocView, Direction } from './types';
 
 const SEC = 1000;
@@ -194,15 +195,19 @@ export async function chooseAssociations({ deckId, count, minimumScore = -1, mVa
 
 function toAssocView(a: AssociationRecord): AssocView {
   const direction = a.direction as Direction;
-  const question = direction === 'AB' ? a.pair.question : a.pair.answer;
-  const answer = direction === 'AB' ? a.pair.answer : a.pair.question;
+  const { cue, response } = associationSides(direction, {
+    question: a.pair.question,
+    answer: a.pair.answer,
+  });
   const score = scoreValue(a);
   return {
     id: a.id,
     pairId: a.pairId,
     direction,
-    question,
-    answer,
+    cue,
+    response,
+    question: cue,
+    answer: response,
     score,
     dueAt: a.dueAt ?? null,
     firstTime: score < 0,
