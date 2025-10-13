@@ -9,9 +9,9 @@ import ThemeToggle from './ThemeToggle';
 
 export default function DeckControls({ deckId, stats, initialNotes }: { deckId: string; stats: {pairs:number}; initialNotes?: string|null; }){
   const [q, setQ] = useState('');
-  const [m, setM] = useState(0);
-  const [min, setMin] = useState(-1);
-  const [count, setCount] = useState(30);
+  const [slider, setSlider] = useState(0);
+  const [minimumScore, setMinimumScore] = useState(-1);
+  const [count, setCount] = useState(13);
   const [mode, setMode] = useState<MatchingMode>(defaultMatchingMode());
   const [openInfo, setOpenInfo] = useState(false);
   const [openNotes, setOpenNotes] = useState(false);
@@ -32,15 +32,26 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
   }, [openNotes]);
 
   useEffect(() => {
+    const clampSliderValue = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
     try {
       const raw = localStorage.getItem('studyParams');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed.m === 'number') setM(parsed.m);
-        if (typeof parsed.min === 'number') setMin(parsed.min);
-        if (typeof parsed.count === 'number') setCount(parsed.count);
-        if (typeof parsed.mode === 'string') setMode(parsed.mode as MatchingMode);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.slider === 'number') {
+        setSlider(clampSliderValue(parsed.slider));
+      } else if (typeof parsed.m === 'number') {
+        setSlider(clampSliderValue((parsed.m / 2) * 100));
       }
+      if (typeof parsed.minimumScore === 'number') {
+        setMinimumScore(parsed.minimumScore);
+      } else if (typeof parsed.min === 'number') {
+        setMinimumScore(parsed.min);
+      }
+      if (typeof parsed.count === 'number') {
+        const nextCount = Number.isFinite(parsed.count) ? Math.max(1, Math.round(parsed.count)) : 13;
+        setCount(nextCount);
+      }
+      if (typeof parsed.mode === 'string') setMode(parsed.mode as MatchingMode);
     } catch {
       /* ignore */
     }
@@ -57,7 +68,15 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
   useEffect(()=>{ window.dispatchEvent(new CustomEvent('deck-search', { detail: q })); }, [q]);
 
   function handleLearn(){
-    localStorage.setItem('studyParams', JSON.stringify({ m, min, count, mode }));
+    const sliderValue = Math.max(0, Math.min(100, Math.round(slider)));
+    const payload = {
+      slider: sliderValue,
+      minimumScore: sliderValue === 100 ? Math.max(0, minimumScore) : minimumScore,
+      count: Math.max(1, Math.round(count)),
+      mode,
+      m: 2 * (sliderValue / 100),
+    };
+    localStorage.setItem('studyParams', JSON.stringify(payload));
     (document.getElementById('studyForm') as HTMLFormElement | null)?.requestSubmit();
   }
 
@@ -83,11 +102,32 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
     });
   };
 
+  const sliderValue = Math.max(0, Math.min(100, slider));
+  const derivedM = 2 * (sliderValue / 100);
+
   return (
     <>
       <div className="toolbar aqua">
         <button onClick={handleLearn} className="toolbtn play" title="Study">▶</button>
-        <div className="sliderbox"><span>Learn</span><input type="range" min="-2" max="6" step="1" value={m} onChange={e=>setM(parseInt(e.currentTarget.value,10))} /><span>Review</span></div>
+        <div className="sliderbox">
+          <span>Learn</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={slider}
+            onChange={(e) => {
+              const value = Number(e.currentTarget.value);
+              if (Number.isNaN(value)) {
+                setSlider(0);
+              } else {
+                setSlider(Math.max(0, Math.min(100, Math.round(value))));
+              }
+            }}
+          />
+          <span>Review</span>
+        </div>
         <label className="match-mode" title="Cards per run">
           <span className="match-mode__label">Cards</span>
           <input
@@ -108,7 +148,7 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
         </label>
         <label className="match-mode" title="Minimum score to include">
           <span className="match-mode__label">Minimum score</span>
-          <select value={min} onChange={e=>setMin(parseInt(e.currentTarget.value, 10))}>
+          <select value={minimumScore} onChange={e=>setMinimumScore(parseInt(e.currentTarget.value, 10))}>
             <option value={-1}>Include new</option>
             <option value={0}>Review only</option>
             <option value={1}>Score ≥ 1</option>
@@ -139,7 +179,9 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
             <div className="modal-header"><div className="title">Deck Info</div><div className="spacer"/><button className="icon" onClick={()=>setOpenInfo(false)}>×</button></div>
             <div className="modal-body">
               <div>Total cards: {stats.pairs}</div>
-              <div>Study settings: m = {m}, minimum score = {min}, cards = {count}, match = {mode}</div>
+              <div>
+                Study settings: slider = {sliderValue}% (m = {derivedM.toFixed(2)}), minimum score = {minimumScore}, cards = {count}, match = {mode}
+              </div>
               <p className="muted">m controls where the scheduler samples scores (lower = newer learning, higher = later review).</p>
             </div>
           </div>

@@ -8,8 +8,8 @@ export async function addPair(deckId: string) {
   const p = await prisma.pair.create({ data: { deckId, question: '', answer: '' } });
   await prisma.association.createMany({
     data: [
-      { pairId: p.id, direction: 'AB', score: 0, dueAt: new Date() },
-      { pairId: p.id, direction: 'BA', score: 0, dueAt: new Date() },
+      { pairId: p.id, direction: 'AB' },
+      { pairId: p.id, direction: 'BA' },
     ],
   });
   revalidatePath(`/deck/${deckId}`);
@@ -124,9 +124,10 @@ export async function saveRow(formData: FormData) {
   const scoreValue   = (scoreStr === null || scoreStr === undefined || String(scoreStr).trim() === '')
     ? null
     : parseInt(String(scoreStr), 10);
-  const safeScore    = scoreValue === null || Number.isNaN(scoreValue)
+  const boundedScore = scoreValue === null || Number.isNaN(scoreValue)
     ? null
-    : Math.max(0, Math.min(10, scoreValue));
+    : Math.max(-1, Math.min(10, scoreValue));
+  const numericScore = boundedScore === null || boundedScore < 0 ? null : boundedScore;
 
   if (intent === 'delete') {
     if (pairId) {
@@ -144,12 +145,24 @@ export async function saveRow(formData: FormData) {
     const created = await prisma.pair.create({
       data: { deckId, question, answer },
     });
-    const scoreForNew = safeScore ?? 0;
-    const dueAt = new Date(Date.now() + Math.pow(5, Math.max(0, scoreForNew)) * 1000);
+    const hasScore = numericScore !== null;
+    const dueAt = hasScore ? new Date(Date.now() + Math.pow(5, Math.max(0, numericScore!)) * 1000) : null;
     await prisma.association.createMany({
       data: [
-        { pairId: created.id, direction: 'AB', score: scoreForNew, dueAt, firstTime: scoreForNew === 0 },
-        { pairId: created.id, direction: 'BA', score: scoreForNew, dueAt, firstTime: scoreForNew === 0 },
+        {
+          pairId: created.id,
+          direction: 'AB',
+          ...(hasScore
+            ? { score: numericScore!, dueAt: dueAt!, firstTime: false }
+            : {}),
+        },
+        {
+          pairId: created.id,
+          direction: 'BA',
+          ...(hasScore
+            ? { score: numericScore!, dueAt: dueAt!, firstTime: false }
+            : {}),
+        },
       ],
     });
     revalidatePath(`/deck/${deckId}`);
@@ -158,14 +171,23 @@ export async function saveRow(formData: FormData) {
 
   await prisma.pair.update({ where: { id: pairId }, data: { question, answer } });
 
-  if (associationId && safeScore !== null) {
-    const dueAt = new Date(Date.now() + Math.pow(5, Math.max(0, safeScore)) * 1000);
+  if (associationId && numericScore !== null) {
+    const dueAt = new Date(Date.now() + Math.pow(5, Math.max(0, numericScore)) * 1000);
     await prisma.association.update({
       where: { id: associationId },
       data: {
-        score: safeScore,
+        score: numericScore,
         dueAt,
-        firstTime: safeScore === 0 ? true : undefined,
+        firstTime: false,
+      },
+    });
+  } else if (associationId && boundedScore !== null && boundedScore < 0) {
+    await prisma.association.update({
+      where: { id: associationId },
+      data: {
+        score: null as unknown as number,
+        dueAt: null,
+        firstTime: true,
       },
     });
   }
