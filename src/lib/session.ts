@@ -98,11 +98,11 @@ export class SessionScheduler {
   associationRight(card: SessionCard, now: Date = new Date()) {
     this.dropScheduled(card.id);
     this.removeFromPool(card.id);
-    const base = Math.max(0, card.score);
-    const newScore = base + 1;
-    card.score = newScore;
+    const previous = typeof card.score === 'number' ? card.score : -1;
+    const newScore = previous + 1;
+    card.score = newScore < 0 ? 0 : newScore;
     card.firstTime = false;
-    const delay = Math.pow(5, newScore) * 1000;
+    const delay = Math.pow(5, Math.max(0, newScore)) * 1000;
     const dueDate = new Date(now.getTime() + delay);
     card.dueAt = dueDate;
     this.insertScheduled(card, dueDate);
