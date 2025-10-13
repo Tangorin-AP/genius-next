@@ -185,7 +185,7 @@ export async function saveRow(formData: FormData) {
     await prisma.association.update({
       where: { id: associationId },
       data: {
-        score: null,
+        score: null as unknown as number,
         dueAt: null,
         firstTime: true,
       },

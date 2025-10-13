@@ -226,7 +226,7 @@ export async function mark(associationId: string, mark: 'RIGHT' | 'WRONG' | 'SKI
     await prisma.association.update({
       where: { id: association.id },
       data: {
-        score: null,
+        score: null as unknown as number,
         dueAt: null,
         firstTime: true,
       },

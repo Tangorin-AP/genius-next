@@ -131,7 +131,14 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       setInput(isReview ? next.answer : '');
       setAutoChoice(null);
       setCheckScore(null);
-      setTimeout(() => inputRef.current?.focus(), 0);
+      setTimeout(() => {
+        if (isReview) {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        } else {
+          inputRef.current?.focus();
+        }
+      }, 0);
     } else {
       setPhase('quiz');
       setInput('');
@@ -219,32 +226,22 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     refreshProgress();
   };
 
-  const confirmIntro = async () => {
-    if (!current || !scheduler || submitting) return;
-    inputRef.current?.blur();
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'WRONG' }) });
-      if (!res.ok) throw new Error('mark failed');
-      scheduler.associationWrong(current);
-      broadcastScore(current.pairId, 0);
-      next();
-    } catch (err) {
-      console.error(err);
-      setActionError('Could not update this card. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const applyRight = async () => {
     if (!current || !scheduler || submitting) return;
     inputRef.current?.blur();
     setSubmitting(true);
     try {
-      const res = await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'RIGHT' }) });
+      const mark = current.firstTime ? 'WRONG' : 'RIGHT';
+      const res = await fetch('/api/mark', {
+        method: 'POST',
+        body: JSON.stringify({ associationId: current.id, decision: mark }),
+      });
       if (!res.ok) throw new Error('mark failed');
-      scheduler.associationRight(current);
+      if (current.firstTime) {
+        scheduler.associationWrong(current);
+      } else {
+        scheduler.associationRight(current);
+      }
       broadcastScore(current.pairId, current.score);
       next();
     } catch (err) {
@@ -294,7 +291,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const doSubmit = async () => {
     if (!current || !scheduler || submitting) return;
     if (current.firstTime) {
-      await confirmIntro();
+      await applyRight();
       return;
     }
     setSubmitting(true);
@@ -357,7 +354,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                 <span>{metaLabel}</span>
               </div>
               <div className="study-intro__answer">{current.answer}</div>
-              <p className="study-intro__note">Read it once, then type it below. Confirming will drop it straight into recall mode.</p>
+              <p className="study-intro__note">Study the answer, type it once, then mark yourself ready. The card will reappear soon for recall.</p>
               <div className="study-intro__input">
                 <input
                   ref={inputRef}
@@ -366,7 +363,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
-                      void confirmIntro();
+                      void applyRight();
                     } else if (event.key === 'Escape') {
                       event.preventDefault();
                       setInput(current.answer);
@@ -375,9 +372,22 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   placeholder="Type it to lock it in…"
                   disabled={submitting}
                 />
-                <button onClick={confirmIntro} className="btn primary" type="button" disabled={submitting}>Start recall</button>
               </div>
               <div className="study-intro__footer">Progress {Math.round(progressPercent * 100)}%</div>
+              <div className="review-row review-row--intro">
+                <span>Ready to start recall?</span>
+                <div className="spacer" />
+                <button
+                  ref={yesRef}
+                  onClick={applyRight}
+                  className="btn yes btn--default"
+                  type="button"
+                  disabled={submitting}
+                >
+                  Right
+                </button>
+                <button onClick={applySkip} className="btn" type="button" disabled={submitting}>Skip</button>
+              </div>
             </div>
           ) : phase === 'quiz' && current ? (
             <>
