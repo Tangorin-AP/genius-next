@@ -153,6 +153,9 @@ export class SessionScheduler {
   }
 
   private shouldSkip(card: SessionCard): boolean {
+    if (card.direction !== 'AB') {
+      return true;
+    }
     return card.answer.trim() === '';
   }
 }
