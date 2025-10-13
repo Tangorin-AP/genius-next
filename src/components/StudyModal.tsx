@@ -20,6 +20,8 @@ type SessionState = {
   current: SessionCard | null;
 };
 
+type StudyPhase = 'review' | 'quiz' | 'check';
+
 function readParams(): StudyParams {
   try {
     const raw = localStorage.getItem('studyParams');
@@ -266,7 +268,14 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   if (!open) return null;
 
-  const isIntro = Boolean(current?.firstTime);
+  const phase: StudyPhase | null = !current
+    ? null
+    : current.firstTime
+      ? 'review'
+      : revealed
+        ? 'check'
+        : 'quiz';
+  const isIntro = phase === 'review';
   const scoreDisplay = current ? formatScore(current.score) : '—';
   const metaLabel = isIntro ? 'new word' : `score ${scoreDisplay}`;
   const progressPercent = progress.total === 0 ? 0 : Math.min(1, progress.seen / progress.total);
