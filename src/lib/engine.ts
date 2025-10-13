@@ -75,6 +75,17 @@ function chooseByScore(
     else buckets.set(key, [assoc]);
   }
 
+  for (const [key, items] of buckets.entries()) {
+    const shuffled = fisherYates(items);
+    shuffled.sort((a, b) => {
+      const weightA = importanceOf(a);
+      const weightB = importanceOf(b);
+      if (weightA === weightB) return 0;
+      return weightA > weightB ? -1 : 1;
+    });
+    buckets.set(key, shuffled);
+  }
+
   const bucketKeys = [...buckets.keys()].sort((a, b) => a - b);
   const selected: AssociationRecord[] = [];
 
@@ -157,16 +168,8 @@ export async function chooseAssociations({ deckId, count, minimumScore = -1, mVa
     return aTime - bTime;
   });
 
-  const shuffled = fisherYates(unscheduled);
-  const ordered = shuffled.sort((a, b) => {
-    const impA = importanceOf(a);
-    const impB = importanceOf(b);
-    if (impA === impB) return 0;
-    return impA > impB ? -1 : 1;
-  });
-
   const dueIds = new Set(dueQueue.map(({ assoc }) => assoc.id));
-  const poolCandidates = ordered.filter((assoc) => !dueIds.has(assoc.id));
+  const poolCandidates = unscheduled.filter((assoc) => !dueIds.has(assoc.id));
   const available = poolCandidates.length;
   const requested = Math.min(Math.max(0, count), available);
   const sampled = chooseByScore(poolCandidates, requested, mValue);
