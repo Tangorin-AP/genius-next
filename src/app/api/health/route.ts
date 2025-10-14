@@ -1,10 +1,9 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { databaseUrl, prisma } from '@/lib/prisma';
 
 export async function GET() {
-  const url = process.env.DATABASE_URL || '';
-  const hasUrl = Boolean(url);
+  const hasUrl = Boolean(databaseUrl);
   try {
     // lightweight DB ping
     await prisma.$queryRaw`SELECT 1`;
