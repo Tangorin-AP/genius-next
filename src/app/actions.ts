@@ -4,8 +4,14 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { assertDatabaseUrl } from '@/lib/env';
+
+function ensureDatabase() {
+  assertDatabaseUrl();
+}
 
 export async function createDeck(formData: FormData) {
+  ensureDatabase();
   const rawName = String(formData.get('name') ?? '').trim();
   const name = rawName === '' ? 'Untitled Pack' : rawName;
   const deck = await prisma.deck.create({ data: { name } });
@@ -14,6 +20,7 @@ export async function createDeck(formData: FormData) {
 }
 
 export async function renameDeck(formData: FormData) {
+  ensureDatabase();
   const deckId = String(formData.get('deckId') ?? '');
   if (!deckId) return;
   const rawName = String(formData.get('name') ?? '').trim();
@@ -25,6 +32,7 @@ export async function renameDeck(formData: FormData) {
 }
 
 export async function deleteDeck(formData: FormData) {
+  ensureDatabase();
   const deckId = String(formData.get('deckId') ?? '');
   if (!deckId) return;
 
@@ -97,6 +105,7 @@ function parseCSV(text: string) {
 }
 
 export async function importCSV(deckId: string, csvText: string) {
+  ensureDatabase();
   const rows = parseCSV(csvText);
   if (rows.length === 0) return;
 
@@ -148,6 +157,7 @@ export async function importCSV(deckId: string, csvText: string) {
 type TextReadable = { text: () => Promise<string> };
 
 export async function importCSVFromForm(deckId: string, formData: FormData) {
+  ensureDatabase();
   const file = formData.get('csv');
   if (!file || typeof (file as Partial<TextReadable>).text !== 'function') return;
   const text = await (file as TextReadable).text();
@@ -155,6 +165,7 @@ export async function importCSVFromForm(deckId: string, formData: FormData) {
 }
 
 export async function saveRow(formData: FormData) {
+  ensureDatabase();
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
   const associationId = String(formData.get('associationId') ?? '');
@@ -184,6 +195,7 @@ export async function saveRow(formData: FormData) {
 }
 
 export async function deletePair(formData: FormData) {
+  ensureDatabase();
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
   if (pairId) {

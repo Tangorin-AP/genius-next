@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { hasDatabaseUrl } from '@/lib/env';
 
 function escapeCSV(value: string) {
   const needsQuotes = /[",\n]/.test(value);
@@ -9,6 +10,12 @@ function escapeCSV(value: string) {
 }
 
 export async function GET(req: Request){
+  if (!hasDatabaseUrl()) {
+    return NextResponse.json(
+      { ok:false, error: 'DATABASE_URL environment variable is not set.' },
+      { status: 503 },
+    );
+  }
   const { searchParams } = new URL(req.url);
   const deckId = searchParams.get('deckId');
   if (!deckId) return NextResponse.json({ ok:false, error: 'deckId required' }, { status: 400 });

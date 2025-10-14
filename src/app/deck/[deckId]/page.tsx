@@ -8,10 +8,25 @@ import DeleteDeckForm from '@/components/DeleteDeckForm';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { renameDeck } from '@/app/actions';
+import { hasDatabaseUrl } from '@/lib/env';
+import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DeckPage({ params }: { params: { deckId: string }}) {
+  if (!hasDatabaseUrl()) {
+    return (
+      <main className="wrap">
+        <div className="page-header deck-header">
+          <Link href="/" className="back-link">← Packs</Link>
+        </div>
+        <div className="pack-grid">
+          <MissingDatabaseNotice />
+        </div>
+      </main>
+    );
+  }
+
   const deck = await prisma.deck.findUnique({ where: { id: params.deckId }, include: { pairs: { include: { associations: true } } } });
   if (!deck) return <div>Deck not found</div>;
 

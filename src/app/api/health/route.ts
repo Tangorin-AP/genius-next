@@ -1,10 +1,16 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { hasDatabaseUrl } from '@/lib/env';
 
 export async function GET() {
-  const url = process.env.DATABASE_URL || '';
-  const hasUrl = Boolean(url);
+  const hasUrl = hasDatabaseUrl();
+  if (!hasUrl) {
+    return NextResponse.json(
+      { ok: false, hasDatabaseUrl: false, error: 'DATABASE_URL environment variable is not set.' },
+      { status: 500 },
+    );
+  }
   try {
     // lightweight DB ping
     await prisma.$queryRaw`SELECT 1`;
