@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useTheme } from './ThemeContext';
 
 type ThemeToggleProps = {
@@ -10,8 +9,6 @@ type ThemeToggleProps = {
 export default function ThemeToggle({ className }: ThemeToggleProps) {
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
-
-  const label = useMemo(() => (isDark ? 'Dark mode' : 'Light mode'), [isDark]);
 
   return (
     <label
@@ -28,7 +25,6 @@ export default function ThemeToggle({ className }: ThemeToggleProps) {
       <span className="theme-toggle__slider">
         <span className="theme-toggle__thumb" />
       </span>
-      <span className="theme-toggle__label">{label}</span>
     </label>
   );
 }
