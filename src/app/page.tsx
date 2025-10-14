@@ -16,7 +16,6 @@ export default async function Home() {
     <main className="wrap">
       <div className="toolbar aqua">
         <div className="title">Genius • Learning</div>
-        <Link href="/spacing" className="toolbtn">Spacing guide</Link>
         <div className="spacer" />
         <ThemeToggle />
       </div>

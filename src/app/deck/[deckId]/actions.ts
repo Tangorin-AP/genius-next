@@ -205,12 +205,5 @@ export async function deletePair(formData: FormData) {
   if (deckId) revalidatePath(`/deck/${deckId}`);
 }
 
-// For the Notes <form> (Client Component)
-export async function saveDeckNotesAction(deckId: string, formData: FormData) {
-  const notes = String(formData.get('notes') || '');
-  await prisma.deck.update({ where: { id: deckId }, data: { notes } });
-  revalidatePath(`/deck/${deckId}`);
-}
-
 // ⛔ Do not export renameDeck from here.
 // Keep renameDeck in src/app/actions.ts only.

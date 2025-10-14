@@ -192,9 +192,3 @@ export async function deletePair(formData: FormData) {
   }
   if (deckId) revalidatePath(`/deck/${deckId}`);
 }
-
-export async function saveDeckNotesAction(deckId: string, formData: FormData) {
-  const notes = String(formData.get('notes') || '');
-  await prisma.deck.update({ where: { id: deckId }, data: { notes } });
-  revalidatePath(`/deck/${deckId}`);
-}
