@@ -1,5 +1,6 @@
 
 import Link from 'next/link';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { createDeck, renameDeck } from '@/app/actions';
 import DeleteDeckForm from '@/components/DeleteDeckForm';
@@ -7,14 +8,24 @@ import ThemeToggle from '@/components/ThemeToggle';
 
 export const dynamic = 'force-dynamic';
 
+type DeckWithCount = Prisma.DeckGetPayload<{ include: { _count: { select: { pairs: true } } } }>;
+
 export default async function Home() {
   const hasDatabase = Boolean(process.env.DATABASE_URL);
-  const decks = hasDatabase
-    ? await prisma.deck.findMany({
+  let dbError: string | null = null;
+  let decks: DeckWithCount[] = [];
+
+  if (hasDatabase) {
+    try {
+      decks = await prisma.deck.findMany({
         orderBy: { createdAt: 'desc' },
         include: { _count: { select: { pairs: true } } },
-      })
-    : [];
+      });
+    } catch (error) {
+      console.error('Failed to load decks', error);
+      dbError = 'Unable to connect to the database.';
+    }
+  }
   return (
     <main className="wrap">
       <div className="toolbar aqua">
@@ -65,9 +76,11 @@ export default async function Home() {
           <div className="deck-card deck-card--empty">
             <span className="deck-card__name">No packs yet</span>
             <span className="deck-card__meta">
-              {hasDatabase
-                ? 'Create a note pack to begin studying.'
-                : 'Set the DATABASE_URL environment variable to connect your database.'}
+              {dbError
+                ? dbError
+                : hasDatabase
+                  ? 'Create a note pack to begin studying.'
+                  : 'Set the DATABASE_URL environment variable to connect your database.'}
             </span>
           </div>
         )}
