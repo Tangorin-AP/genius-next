@@ -8,10 +8,13 @@ import ThemeToggle from '@/components/ThemeToggle';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const decks = await prisma.deck.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: { _count: { select: { pairs: true } } },
-  });
+  const hasDatabase = Boolean(process.env.DATABASE_URL);
+  const decks = hasDatabase
+    ? await prisma.deck.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { pairs: true } } },
+      })
+    : [];
   return (
     <main className="wrap">
       <div className="toolbar aqua">
@@ -61,7 +64,11 @@ export default async function Home() {
         {decks.length === 0 && (
           <div className="deck-card deck-card--empty">
             <span className="deck-card__name">No packs yet</span>
-            <span className="deck-card__meta">Create a note pack to begin studying.</span>
+            <span className="deck-card__meta">
+              {hasDatabase
+                ? 'Create a note pack to begin studying.'
+                : 'Set the DATABASE_URL environment variable to connect your database.'}
+            </span>
           </div>
         )}
       </section>

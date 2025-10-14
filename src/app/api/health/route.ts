@@ -5,6 +5,14 @@ import { prisma } from '@/lib/prisma';
 export async function GET() {
   const url = process.env.DATABASE_URL || '';
   const hasUrl = Boolean(url);
+
+  if (!hasUrl) {
+    return NextResponse.json(
+      { ok: false, hasDatabaseUrl: false, error: 'Missing database configuration' },
+      { status: 503 },
+    );
+  }
+
   try {
     // lightweight DB ping
     await prisma.$queryRaw`SELECT 1`;

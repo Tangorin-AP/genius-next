@@ -12,6 +12,11 @@ import { renameDeck } from '@/app/actions';
 export const dynamic = 'force-dynamic';
 
 export default async function DeckPage({ params }: { params: { deckId: string }}) {
+  const hasDatabase = Boolean(process.env.DATABASE_URL);
+  if (!hasDatabase) {
+    return <div className="wrap">Database connection not configured.</div>;
+  }
+
   const deck = await prisma.deck.findUnique({ where: { id: params.deckId }, include: { pairs: { include: { associations: true } } } });
   if (!deck) return <div>Deck not found</div>;
 
