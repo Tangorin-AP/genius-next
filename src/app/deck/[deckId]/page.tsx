@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { renameDeck } from '@/app/actions';
 import { hasDatabaseUrl } from '@/lib/env';
 import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
         <DeleteDeckForm deckId={deck.id} redirectTo="/" className="chip chip--danger">
           Delete pack
         </DeleteDeckForm>
+        <ThemeToggle className="deck-header__theme-toggle" />
       </div>
       <DeckControls stats={{pairs: deck.pairs.length}} />
 
