@@ -45,7 +45,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
           Delete pack
         </DeleteDeckForm>
       </div>
-      <DeckControls deckId={deck.id} stats={{pairs: deck.pairs.length}} initialNotes={deck.notes}/>
+      <DeckControls stats={{pairs: deck.pairs.length}} />
 
       <DeckTable deckId={deck.id} rows={rows} />
 

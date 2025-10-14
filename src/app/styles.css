@@ -247,9 +247,6 @@ body {
 .link-export{display:inline-flex;align-items:center;padding:.3rem .75rem;border-radius:999px;text-decoration:none;border:1px solid var(--chrome-border);background:var(--chip-bg);color:var(--ink);font-weight:600;transition:background .2s ease,border-color .2s ease,box-shadow .2s ease}
 .link-export:hover{background:color-mix(in srgb,var(--chip-bg) 70%,var(--link) 10%);border-color:color-mix(in srgb,var(--chrome-border) 70%,var(--link) 30%);box-shadow:0 6px 12px rgba(0,0,0,.08)}
 
-.notes-actions{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;margin-top:10px}
-.notes-feedback{flex:1;text-align:left;font-size:.78rem;color:var(--muted)}
-.notes-feedback--error{color:#d64545;font-weight:600}
 
 .score-cell{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;position:relative}
 .score-chip{display:inline-flex;align-items:center;gap:.45rem;padding:.35rem .6rem;border-radius:999px;background:var(--score-chip-bg);border:1px solid var(--chrome-border);cursor:pointer;min-width:118px;transition:box-shadow .2s ease,transform .2s ease}
