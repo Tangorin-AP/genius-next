@@ -4,10 +4,27 @@ import { prisma } from '@/lib/prisma';
 import { createDeck, renameDeck } from '@/app/actions';
 import DeleteDeckForm from '@/components/DeleteDeckForm';
 import ThemeToggle from '@/components/ThemeToggle';
+import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
+import { hasDatabaseUrl } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
+  if (!hasDatabaseUrl()) {
+    return (
+      <main className="wrap">
+        <div className="toolbar aqua">
+          <div className="title">Genius • Learning</div>
+          <div className="spacer" />
+          <ThemeToggle />
+        </div>
+        <section className="pack-grid">
+          <MissingDatabaseNotice />
+        </section>
+      </main>
+    );
+  }
+
   const decks = await prisma.deck.findMany({
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { pairs: true } } },
