@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState, useTransition } from 'react';
 import { defaultMatchingMode, MatchingMode } from '@/lib/matching';
+import { UNSCHEDULED_SAMPLE_COUNT } from '@/lib/constants';
 import { saveDeckNotesAction } from '@/app/deck/[deckId]/actions';
 import ThemeToggle from './ThemeToggle';
 
@@ -11,7 +12,6 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
   const [q, setQ] = useState('');
   const [slider, setSlider] = useState(0);
   const [minimumScore, setMinimumScore] = useState(-1);
-  const [count, setCount] = useState(13);
   const [mode, setMode] = useState<MatchingMode>(defaultMatchingMode());
   const [openInfo, setOpenInfo] = useState(false);
   const [openNotes, setOpenNotes] = useState(false);
@@ -47,10 +47,6 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
       } else if (typeof parsed.min === 'number') {
         setMinimumScore(parsed.min);
       }
-      if (typeof parsed.count === 'number') {
-        const nextCount = Number.isFinite(parsed.count) ? Math.max(1, Math.round(parsed.count)) : 13;
-        setCount(nextCount);
-      }
       if (typeof parsed.mode === 'string') setMode(parsed.mode as MatchingMode);
     } catch {
       /* ignore */
@@ -72,7 +68,6 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
     const payload = {
       slider: sliderValue,
       minimumScore: sliderValue === 100 ? Math.max(0, minimumScore) : minimumScore,
-      count: Math.max(1, Math.round(count)),
       mode,
       m: 2 * (sliderValue / 100),
     };
@@ -128,24 +123,6 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
           />
           <span>Review</span>
         </div>
-        <label className="match-mode" title="Cards per run">
-          <span className="match-mode__label">Cards</span>
-          <input
-            type="number"
-            min={1}
-            max={200}
-            value={count}
-            onChange={(event) => {
-              const value = Number(event.currentTarget.value);
-              if (Number.isNaN(value)) {
-                setCount(1);
-              } else {
-                setCount(Math.max(1, Math.min(200, Math.round(value))));
-              }
-            }}
-          />
-          <span className="match-mode__hint">Number of unscheduled cards to sample this session.</span>
-        </label>
         <label className="match-mode" title="Minimum score to include">
           <span className="match-mode__label">Minimum score</span>
           <select value={minimumScore} onChange={e=>setMinimumScore(parseInt(e.currentTarget.value, 10))}>
@@ -180,7 +157,7 @@ export default function DeckControls({ deckId, stats, initialNotes }: { deckId: 
             <div className="modal-body">
               <div>Total cards: {stats.pairs}</div>
               <div>
-                Study settings: slider = {sliderValue}% (m = {derivedM.toFixed(2)}), minimum score = {minimumScore}, cards = {count}, match = {mode}
+                Study settings: slider = {sliderValue}% (m = {derivedM.toFixed(2)}), minimum score = {minimumScore}, sample size = {UNSCHEDULED_SAMPLE_COUNT}, match = {mode}
               </div>
               <p className="muted">m controls where the scheduler samples scores (lower = newer learning, higher = later review).</p>
             </div>

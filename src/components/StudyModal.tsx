@@ -3,17 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RawSessionPlan, SessionCard, SessionScheduler } from '@/lib/session';
 import { computeCorrectness, defaultMatchingMode, MatchingMode, normalizeAnswerDisplay } from '@/lib/matching';
+import { UNSCHEDULED_SAMPLE_COUNT } from '@/lib/constants';
 
 const PASS_THRESHOLD = 0.5;
 
 type StudyParams = {
   slider: number;
   minimumScore: number;
-  count: number;
   mode: MatchingMode;
 };
 
-const DEFAULT_PARAMS: StudyParams = { slider: 0, minimumScore: -1, count: 13, mode: defaultMatchingMode() };
+const DEFAULT_PARAMS: StudyParams = { slider: 0, minimumScore: -1, mode: defaultMatchingMode() };
 
 type SessionState = {
   scheduler: SessionScheduler | null;
@@ -41,11 +41,9 @@ function readParams(): StudyParams {
         : typeof parsed.min === 'number'
           ? parsed.min
           : DEFAULT_PARAMS.minimumScore;
-    const countValue = typeof parsed.count === 'number' ? parsed.count : DEFAULT_PARAMS.count;
     return {
       slider,
       minimumScore,
-      count: Number.isFinite(countValue) ? Math.max(1, Math.round(countValue)) : DEFAULT_PARAMS.count,
       mode: typeof parsed.mode === 'string' ? (parsed.mode as MatchingMode) : DEFAULT_PARAMS.mode,
     };
   } catch {
@@ -57,7 +55,7 @@ async function fetchSelection(deckId: string, params: StudyParams): Promise<RawS
   const slider = Math.max(0, Math.min(100, Math.round(params.slider)));
   const m = 2 * (slider / 100);
   const minimumScore = slider >= 100 ? 0 : params.minimumScore;
-  const count = Math.max(1, Math.round(params.count));
+  const count = UNSCHEDULED_SAMPLE_COUNT;
   const search = new URLSearchParams({
     deckId,
     m: String(m),
