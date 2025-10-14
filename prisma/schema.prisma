@@ -11,6 +11,7 @@ datasource db {
 model Deck {
   id         String   @id @default(cuid())
   name       String
+  notes      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   pairs      Pair[]
