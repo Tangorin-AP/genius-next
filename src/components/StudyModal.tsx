@@ -260,6 +260,24 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const scheduler = session.scheduler;
   const current = session.current;
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!visible || closing) return;
+    if (!current) return;
+    if (phase === 'check') return;
+    const frame = window.requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      if (phase === 'review' || el.value) {
+        el.select();
+      }
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [closing, current, phase, visible]);
+
   const refreshProgress = useCallback(() => {
     if (!scheduler) {
       setProgress({ seen: 0, total: 0 });
