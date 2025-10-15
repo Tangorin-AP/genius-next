@@ -260,6 +260,17 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const scheduler = session.scheduler;
   const current = session.current;
 
+  useEffect(() => {
+    if (!visible || closing) return;
+    if (phase === 'check') return;
+    const node = inputRef.current;
+    if (!node) return;
+    node.focus({ preventScroll: true });
+    if (phase === 'review') {
+      node.select();
+    }
+  }, [closing, visible, phase, current]);
+
   const refreshProgress = useCallback(() => {
     if (!scheduler) {
       setProgress({ seen: 0, total: 0 });
@@ -461,6 +472,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
               <div className="quiz-entry">
                 <input
                   ref={inputRef}
+                  autoFocus
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={(event) => {

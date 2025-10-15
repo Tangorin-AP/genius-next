@@ -71,6 +71,12 @@ body {
   transition: background 0.35s ease, color 0.25s ease;
 }
 
+body[data-study-open='true'] {
+  background: #000;
+  background-image: none;
+  color-scheme: dark;
+}
+
 .wrap { max-width: 980px; margin: 18px auto; padding: 0 10px; }
 
 .page-transition{animation:page-fade-in .38s cubic-bezier(.22,1,.36,1) forwards;}
