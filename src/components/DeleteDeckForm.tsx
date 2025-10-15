@@ -8,9 +8,11 @@ type Props = {
   redirectTo?: string;
   className?: string;
   children: ReactNode;
+  ariaLabel?: string;
+  title?: string;
 };
 
-export default function DeleteDeckForm({ deckId, redirectTo, className, children }: Props) {
+export default function DeleteDeckForm({ deckId, redirectTo, className, children, ariaLabel, title }: Props) {
   return (
     <form
       action={deleteDeck}
@@ -23,7 +25,9 @@ export default function DeleteDeckForm({ deckId, redirectTo, className, children
     >
       <input type="hidden" name="deckId" value={deckId} />
       {redirectTo ? <input type="hidden" name="redirectTo" value={redirectTo} /> : null}
-      <button type="submit" className={className}>{children}</button>
+      <button type="submit" className={className} aria-label={ariaLabel} title={title}>
+        {children}
+      </button>
     </form>
   );
 }

@@ -76,65 +76,68 @@ export default function DeckCardManage({ deck }: Props) {
     setIsEditing(true);
   };
 
-  const linkContent = (
-    <>
+  const nameLink = (
+    <Link href={`/deck/${deck.id}`} className="deck-card__name-link">
       <span className="deck-card__name">{deck.name}</span>
+    </Link>
+  );
+
+  const metaLink = (
+    <Link href={`/deck/${deck.id}`} className="deck-card__meta-link">
       <span className="deck-card__meta">{deck._count.pairs} cards</span>
-    </>
+    </Link>
   );
 
   return (
     <article className="deck-card deck-card--manage">
-      <div className="deck-card__header-row">
-        <div className="deck-card__title-block">
-          {isEditing ? (
-            <form
-              ref={formRef}
-              className="deck-card__rename-inline"
-              onSubmit={handleSubmit}
-            >
-              <input type="hidden" name="deckId" value={deck.id} />
-              <input
-                ref={inputRef}
-                name="name"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                disabled={isPending}
-                className="deck-card__rename-input"
-                placeholder="Pack title"
-                aria-label="Pack title"
-              />
-              <span className="deck-card__meta" aria-live="polite">
-                {deck._count.pairs} cards
-              </span>
-            </form>
-          ) : (
-            <Link href={`/deck/${deck.id}`} className="deck-card__link">
-              {linkContent}
-            </Link>
-          )}
-        </div>
-        <button
-          type="button"
-          className="deck-card__icon-button"
-          aria-label={`Rename ${deck.name}`}
-          onClick={handleEditClick}
-          disabled={isPending}
-        >
-          <span aria-hidden="true">✎</span>
-          <span className="sr-only">Rename pack</span>
-        </button>
-      </div>
-      <div className="deck-card__form deck-card__form--danger">
+      <div className="deck-card__delete">
         <DeleteDeckForm
           deckId={deck.id}
-          className="deck-card__button deck-card__button--danger"
+          className="deck-card__delete-button"
+          ariaLabel={`Delete ${deck.name}`}
+          title="Delete pack"
         >
-          Delete pack
+          <span aria-hidden="true">🗑</span>
+          <span className="sr-only">Delete pack</span>
         </DeleteDeckForm>
       </div>
+      {isEditing ? (
+        <form ref={formRef} className="deck-card__rename-inline" onSubmit={handleSubmit}>
+          <input type="hidden" name="deckId" value={deck.id} />
+          <input
+            ref={inputRef}
+            name="name"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            disabled={isPending}
+            className="deck-card__rename-input"
+            placeholder="Pack title"
+            aria-label="Pack title"
+          />
+          <span className="deck-card__meta" aria-live="polite">
+            {deck._count.pairs} cards
+          </span>
+        </form>
+      ) : (
+        <div className="deck-card__header">
+          <div className="deck-card__title-line">
+            {nameLink}
+            <button
+              type="button"
+              className="deck-card__edit-button"
+              aria-label={`Rename ${deck.name}`}
+              onClick={handleEditClick}
+              disabled={isPending}
+            >
+              <span aria-hidden="true">✎</span>
+              <span className="sr-only">Rename pack</span>
+            </button>
+          </div>
+          {metaLink}
+        </div>
+      )}
     </article>
   );
 }
