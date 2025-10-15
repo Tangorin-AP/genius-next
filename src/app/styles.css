@@ -193,13 +193,14 @@ body {
 .deck-card__button:hover{background:rgba(255,255,255,.24);border-color:rgba(255,255,255,.5)}
 .deck-card__button--danger{border-color:rgba(255,0,0,.45);background:rgba(255,0,0,.22)}
 .deck-card__button--danger:hover{background:rgba(255,0,0,.3);border-color:rgba(255,80,80,.7)}
-.deck-card__header-row{display:flex;align-items:flex-start;gap:.75rem}
-.deck-card__title-block{flex:1;display:flex;flex-direction:column;gap:.6rem}
-.deck-card__rename-inline{display:flex;flex-direction:column;gap:.6rem}
-.deck-card__rename-input{padding:.5rem .7rem;border-radius:10px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.45);color:#fff;font-size:1.05rem;font-weight:600;transition:border-color .2s ease,box-shadow .2s ease}
+.deck-card__header-row{display:flex;align-items:flex-start;gap:.75rem;position:relative}
+.deck-card__title-block{flex:1;display:flex;flex-direction:column;gap:.6rem;min-width:0;padding-right:2.6rem}
+.deck-card__rename-inline{display:flex;flex-direction:column;gap:.35rem;flex:1;min-width:0;margin:0}
+.deck-card__rename-inline .deck-card__meta{margin-top:0}
+.deck-card__rename-input{width:100%;padding:.4rem .6rem;border-radius:8px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;font-size:1rem;font-weight:600;transition:border-color .2s ease,box-shadow .2s ease}
 .deck-card__rename-input::placeholder{color:rgba(255,255,255,.45)}
-.deck-card__rename-input:focus{outline:none;border-color:rgba(255,255,255,.65);box-shadow:0 0 0 3px rgba(255,255,255,.18)}
-.deck-card__icon-button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.16);color:#fff;cursor:pointer;font-size:0;transition:background .2s ease,border-color .2s ease,transform .2s ease}
+.deck-card__rename-input:focus{outline:none;border-color:rgba(255,255,255,.55);box-shadow:0 0 0 2px rgba(255,255,255,.2)}
+.deck-card__icon-button{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.16);color:#fff;cursor:pointer;font-size:0;transition:background .2s ease,border-color .2s ease,transform .2s ease;position:absolute;top:0;right:0}
 .deck-card__icon-button:hover{background:rgba(255,255,255,.24);border-color:rgba(255,255,255,.5);transform:translateY(-1px)}
 .deck-card__icon-button:disabled{opacity:.55;cursor:not-allowed;transform:none}
 .deck-card__icon-button span[aria-hidden="true"]{font-size:1rem;line-height:1}
