@@ -140,6 +140,7 @@ export class SessionScheduler {
     card.score = -1;
     card.firstTime = true;
     card.dueAt = null;
+    this.pool.unshift(card);
   }
 
   private isDueReady(now: Date): boolean {

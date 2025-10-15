@@ -113,24 +113,27 @@ function chooseByScore(
   const hasRemaining = () => buckets.some((bucket) => bucket.length > 0);
 
   while (selected.length < desired && hasRemaining()) {
-    let x = Math.random();
-    let chosen: AssociationRecord | null = null;
+    const activeWeights = weights.map((weight, idx) => (buckets[idx].length > 0 ? weight : 0));
+    const totalWeight = activeWeights.reduce((sum, weight) => sum + weight, 0);
 
-    for (let idx = 0; idx < buckets.length; idx += 1) {
-      const weight = weights[idx];
-      if (x < weight) {
-        const bucket = buckets[idx];
-        if (bucket.length > 0) {
-          chosen = bucket.shift()!;
-          break;
-        }
+    if (totalWeight <= 0) {
+      const nextBucketIndex = buckets.findIndex((bucket) => bucket.length > 0);
+      if (nextBucketIndex === -1) {
+        break;
       }
-      x -= weight;
+      selected.push(buckets[nextBucketIndex].shift()!);
+      continue;
     }
 
-    if (chosen) {
-      selected.push(chosen);
-      continue;
+    let x = Math.random() * totalWeight;
+    for (let idx = 0; idx < buckets.length; idx += 1) {
+      const weight = activeWeights[idx];
+      if (weight <= 0) continue;
+      if (x < weight) {
+        selected.push(buckets[idx].shift()!);
+        break;
+      }
+      x -= weight;
     }
   }
 
