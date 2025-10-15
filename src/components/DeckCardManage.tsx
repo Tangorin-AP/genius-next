@@ -116,16 +116,18 @@ export default function DeckCardManage({ deck }: Props) {
             </Link>
           )}
         </div>
-        <button
-          type="button"
-          className="deck-card__icon-button"
-          aria-label={`Rename ${deck.name}`}
-          onClick={handleEditClick}
-          disabled={isPending}
-        >
-          <span aria-hidden="true">✎</span>
-          <span className="sr-only">Rename pack</span>
-        </button>
+        {!isEditing && (
+          <button
+            type="button"
+            className="deck-card__edit-button"
+            aria-label={`Rename ${deck.name}`}
+            onClick={handleEditClick}
+            disabled={isPending}
+          >
+            <span aria-hidden="true">✎</span>
+            <span className="sr-only">Rename pack</span>
+          </button>
+        )}
       </div>
       <div className="deck-card__form deck-card__form--danger">
         <DeleteDeckForm
