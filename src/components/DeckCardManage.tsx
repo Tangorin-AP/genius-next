@@ -76,6 +76,25 @@ export default function DeckCardManage({ deck }: Props) {
     setIsEditing(true);
   };
 
+  const nameLink = (
+    <Link href={`/deck/${deck.id}`} className="deck-card__name-link">
+      <span className="deck-card__name">{deck.name}</span>
+    </Link>
+  );
+
+  const metaLink = (
+    <Link href={`/deck/${deck.id}`} className="deck-card__meta-link">
+      <span className="deck-card__meta">{deck._count.pairs} cards</span>
+    </Link>
+  );
+
+  const linkContent = (
+    <>
+      <span className="deck-card__name">{deck.name}</span>
+      <span className="deck-card__meta">{deck._count.pairs} cards</span>
+    </>
+  );
+
   return (
     <article className="deck-card deck-card--manage">
       {isEditing ? (
