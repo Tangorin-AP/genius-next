@@ -30,15 +30,11 @@ function factorial(n: number): number {
   let value = 1;
   for (let i = 2; i <= n; i++) {
     value *= i;
-    if (!Number.isFinite(value)) break;
   }
   return value;
 }
 
 function poissonValue(x: number, m: number): number {
-  if (m <= 0) {
-    return x === 0 ? 1 : 0;
-  }
   const numerator = Math.pow(m, x);
   const denom = factorial(x);
   return (denom === 0 ? 0 : numerator / denom) * Math.exp(-m);
@@ -80,6 +76,10 @@ function chooseByScore(
     return impA > impB ? -1 : 1;
   });
 
+  if (ordered.length <= count) {
+    return ordered;
+  }
+
   let minimumScore = Number.POSITIVE_INFINITY;
   let maximumScore = Number.NEGATIVE_INFINITY;
   const resolvedScores: number[] = [];
@@ -96,41 +96,35 @@ function chooseByScore(
     maximumScore = 0;
   }
 
-  const bucketCount = Math.max(1, Math.floor(maximumScore - minimumScore + 1));
+  const bucketCount = Math.max(1, Math.trunc(maximumScore - minimumScore + 1));
   const buckets: AssociationRecord[][] = Array.from({ length: bucketCount }, () => []);
 
   for (let i = 0; i < ordered.length; i += 1) {
     const score = resolvedScores[i];
-    const index = Math.max(0, Math.min(bucketCount - 1, score - minimumScore));
-    buckets[index].push(ordered[i]);
+    const index = Math.trunc(score - minimumScore);
+    const bucket = buckets[index];
+    if (bucket) {
+      bucket.push(ordered[i]);
+    }
   }
 
-  const safeM = Math.max(0, mValue);
-  const weights = buckets.map((_, idx) => poissonValue(idx, safeM));
+  const weights = buckets.map((_, idx) => poissonValue(idx, mValue));
   const desired = Math.min(count, ordered.length);
   const selected: AssociationRecord[] = [];
 
-  const hasRemaining = () => buckets.some((bucket) => bucket.length > 0);
-
-  while (selected.length < desired && hasRemaining()) {
+  while (selected.length < desired) {
     let x = Math.random();
-    let chosen: AssociationRecord | null = null;
 
     for (let idx = 0; idx < buckets.length; idx += 1) {
       const weight = weights[idx];
       if (x < weight) {
         const bucket = buckets[idx];
         if (bucket.length > 0) {
-          chosen = bucket.shift()!;
+          selected.push(bucket.shift()!);
           break;
         }
       }
       x -= weight;
-    }
-
-    if (chosen) {
-      selected.push(chosen);
-      continue;
     }
   }
 
