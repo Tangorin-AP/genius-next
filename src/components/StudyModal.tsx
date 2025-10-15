@@ -79,7 +79,9 @@ function formatScore(score: number): string {
 }
 
 export default function StudyModal({ deckId }: { deckId: string }) {
-  const [open, setOpen] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [requestVersion, setRequestVersion] = useState(0);
   const [session, setSession] = useState<SessionState>({ scheduler: null, current: null });
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState<'review' | 'quiz' | 'check'>('quiz');
@@ -91,6 +93,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const paramsRef = useRef<StudyParams>(DEFAULT_PARAMS);
+  const closeTimeoutRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const yesRef = useRef<HTMLButtonElement>(null);
   const noRef = useRef<HTMLButtonElement>(null);
@@ -104,15 +107,32 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     setActionError(null);
     setError(null);
     setLoading(false);
+    setSubmitting(false);
     setPhase('quiz');
     setProgress({ seen: 0, total: 0 });
     inputRef.current?.blur();
   }, []);
 
   const close = useCallback(() => {
-    setOpen(false);
-    teardownSession();
-  }, [teardownSession]);
+    if (!visible || closing) return;
+    setClosing(true);
+    if (closeTimeoutRef.current !== null && typeof window !== 'undefined') {
+      window.clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    if (typeof window === 'undefined') {
+      setVisible(false);
+      setClosing(false);
+      teardownSession();
+      return;
+    }
+    closeTimeoutRef.current = window.setTimeout(() => {
+      closeTimeoutRef.current = null;
+      setVisible(false);
+      setClosing(false);
+      teardownSession();
+    }, 180);
+  }, [closing, teardownSession, visible]);
 
   const takeNextCard = useCallback((scheduler: SessionScheduler | null) => {
     if (!scheduler) {
@@ -148,19 +168,35 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   }, [close, teardownSession]);
 
   useEffect(() => {
-    const onSubmitFromToolbar = (e: Event) => {
-      const target = e.target as HTMLFormElement;
+    return () => {
+      if (closeTimeoutRef.current !== null && typeof window !== 'undefined') {
+        window.clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const onSubmitFromToolbar = (event: Event) => {
+      const target = event.target as HTMLFormElement | null;
       if (target && target.id === 'studyForm') {
-        e.preventDefault();
-        setOpen(true);
+        event.preventDefault();
+        if (closeTimeoutRef.current !== null && typeof window !== 'undefined') {
+          window.clearTimeout(closeTimeoutRef.current);
+          closeTimeoutRef.current = null;
+        }
+        setClosing(false);
+        teardownSession();
+        setVisible(true);
+        setRequestVersion((value) => value + 1);
       }
     };
     document.addEventListener('submit', onSubmitFromToolbar);
     return () => document.removeEventListener('submit', onSubmitFromToolbar);
-  }, []);
+  }, [teardownSession]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!visible || closing) return;
     let active = true;
     setLoading(true);
     setError(null);
@@ -188,11 +224,11 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     return () => {
       active = false;
     };
-  }, [open, deckId, takeNextCard]);
+  }, [closing, deckId, takeNextCard, visible, requestVersion]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (open) {
+    if (visible || closing) {
       document.body.dataset.studyOpen = 'true';
     } else {
       delete document.body.dataset.studyOpen;
@@ -200,7 +236,17 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     return () => {
       delete document.body.dataset.studyOpen;
     };
-  }, [open]);
+  }, [closing, visible]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!(visible || closing)) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [closing, visible]);
 
   useEffect(() => {
     if (phase !== 'check') return;
@@ -214,20 +260,20 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const scheduler = session.scheduler;
   const current = session.current;
 
-  const refreshProgress = () => {
+  const refreshProgress = useCallback(() => {
     if (!scheduler) {
       setProgress({ seen: 0, total: 0 });
       return;
     }
     setProgress(scheduler.progress());
-  };
+  }, [scheduler]);
 
-  const next = () => {
+  const next = useCallback(() => {
     takeNextCard(scheduler);
     refreshProgress();
-  };
+  }, [refreshProgress, scheduler, takeNextCard]);
 
-  const applyRight = async () => {
+  const applyRight = useCallback(async () => {
     if (!current || !scheduler || submitting) return;
     inputRef.current?.blur();
     setSubmitting(true);
@@ -251,14 +297,17 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [current, next, scheduler, submitting]);
 
-  const applyWrong = async () => {
+  const applyWrong = useCallback(async () => {
     if (!current || !scheduler || submitting) return;
     inputRef.current?.blur();
     setSubmitting(true);
     try {
-      const res = await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'WRONG' }) });
+      const res = await fetch('/api/mark', {
+        method: 'POST',
+        body: JSON.stringify({ associationId: current.id, decision: 'WRONG' }),
+      });
       if (!res.ok) throw new Error('mark failed');
       scheduler.associationWrong(current);
       broadcastScore(current.pairId, 0);
@@ -269,14 +318,17 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [current, next, scheduler, submitting]);
 
-  const applySkip = async () => {
+  const applySkip = useCallback(async () => {
     if (!current || !scheduler || submitting) return;
     inputRef.current?.blur();
     setSubmitting(true);
     try {
-      const res = await fetch('/api/mark', { method: 'POST', body: JSON.stringify({ associationId: current.id, decision: 'SKIP' }) });
+      const res = await fetch('/api/mark', {
+        method: 'POST',
+        body: JSON.stringify({ associationId: current.id, decision: 'SKIP' }),
+      });
       if (!res.ok) throw new Error('mark failed');
       scheduler.associationSkip(current);
       broadcastScore(current.pairId, -1);
@@ -287,9 +339,9 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [current, next, scheduler, submitting]);
 
-  const doSubmit = async () => {
+  const doSubmit = useCallback(async () => {
     if (!current || !scheduler || submitting) return;
     if (current.firstTime) {
       await applyRight();
@@ -311,9 +363,44 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [applyRight, current, input, scheduler, submitting]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!visible || closing) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (phase !== 'check') return;
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || target.isContentEditable) {
+          return;
+        }
+      }
+      const key = event.key.toLowerCase();
+      if (key === 'y') {
+        event.preventDefault();
+        void applyRight();
+      } else if (key === 'n') {
+        event.preventDefault();
+        void applyWrong();
+      } else if (key === 's') {
+        event.preventDefault();
+        void applySkip();
+      } else if (key === 'enter') {
+        event.preventDefault();
+        if (autoChoice === 'YES') {
+          void applyRight();
+        } else if (autoChoice === 'NO') {
+          void applyWrong();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [applyRight, applySkip, applyWrong, autoChoice, closing, phase, visible]);
+
+
+  if (!visible) return null;
 
   const isIntro = Boolean(current?.firstTime);
   const scoreDisplay = current ? formatScore(current.score) : '—';
@@ -324,16 +411,19 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const disableEntry = submitting || phase === 'check';
   const typedLabel = normalizeAnswerDisplay(input);
   const expectedLabel = current ? normalizeAnswerDisplay(current.answer) : '';
+  const overlayClassName = `screen screen--study${closing ? ' screen--closing' : ''}`;
+  const modalClassName = `modal boxed modal--study${closing ? ' modal--closing' : ''}`;
+  const bodyClassName = `modal-body${isIntro ? ' modal-body--intro' : ''}`;
 
   return (
-    <div className="screen screen--study">
-      <div className="modal boxed modal--study">
+    <div className={overlayClassName}>
+      <div className={modalClassName}>
         <div className="modal-header">
           <div className="title">Study</div>
           <div className="spacer" />
-          <button className="icon" onClick={close}>×</button>
+          <button className="icon" type="button" onClick={close}>×</button>
         </div>
-        <div className={`modal-body${isIntro ? ' modal-body--intro' : ''}`}>
+        <div className={bodyClassName}>
           {actionError && !loading && !error && (
             <div className="study-error" role="status">{actionError}</div>
           )}
