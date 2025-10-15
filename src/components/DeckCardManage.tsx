@@ -122,33 +122,33 @@ export default function DeckCardManage({ deck }: Props) {
             <Link href={`/deck/${deck.id}`} className="deck-card__name-link">
               <span className="deck-card__name">{deck.name}</span>
             </Link>
-            <button
-              type="button"
-              className="deck-card__edit-button"
-              aria-label={`Rename ${deck.name}`}
-              onClick={handleEditClick}
-              disabled={isPending}
-            >
-              <span aria-hidden="true">✎</span>
-              <span className="sr-only">Rename pack</span>
-            </button>
+            <div className="deck-card__actions">
+              <button
+                type="button"
+                className="deck-card__edit-button"
+                aria-label={`Rename ${deck.name}`}
+                onClick={handleEditClick}
+                disabled={isPending}
+              >
+                <span aria-hidden="true">✎</span>
+                <span className="sr-only">Rename pack</span>
+              </button>
+              <DeleteDeckForm
+                deckId={deck.id}
+                className="deck-card__delete-button"
+                ariaLabel={`Delete ${deck.name}`}
+                title="Delete pack"
+              >
+                <span aria-hidden="true">🗑</span>
+                <span className="sr-only">Delete pack</span>
+              </DeleteDeckForm>
+            </div>
           </div>
           <Link href={`/deck/${deck.id}`} className="deck-card__meta-link">
             <span className="deck-card__meta">{deck._count.pairs} cards</span>
           </Link>
         </div>
       )}
-      <div className="deck-card__delete">
-        <DeleteDeckForm
-          deckId={deck.id}
-          className="deck-card__delete-button"
-          ariaLabel={`Delete ${deck.name}`}
-          title="Delete pack"
-        >
-          <span aria-hidden="true">🗑</span>
-          <span className="sr-only">Delete pack</span>
-        </DeleteDeckForm>
-      </div>
     </article>
   );
 }
