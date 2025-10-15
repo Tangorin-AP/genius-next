@@ -33,6 +33,10 @@ function dueTime(entry: QueueEntry): number {
   return entry.dueDate.getTime();
 }
 
+type SchedulerOptions = {
+  reviewBias?: number;
+};
+
 export class SessionScheduler {
   private dueQueue: QueueEntry[];
 
@@ -42,7 +46,9 @@ export class SessionScheduler {
 
   private readonly total: number;
 
-  constructor(seed: RawSessionPlan) {
+  private readonly reviewBias: number;
+
+  constructor(seed: RawSessionPlan, options: SchedulerOptions = {}) {
     const dueCards = seed.due.map(cloneCard);
     const poolCards = seed.pool.map(cloneCard);
     dueCards.sort((a, b) => {
@@ -55,36 +61,45 @@ export class SessionScheduler {
     this.pool = poolCards;
     this.seen = 0;
     this.total = this.dueQueue.length + this.pool.length;
+    const bias = typeof options.reviewBias === 'number' ? options.reviewBias : 1;
+    this.reviewBias = Math.max(0, Math.min(1, Number.isFinite(bias) ? bias : 1));
   }
 
   next(now: Date = new Date()): SessionCard | undefined {
-    while (this.dueQueue.length) {
-      const head = this.dueQueue[0];
-      const dueAt = head.dueDate;
-      if (!dueAt || dueAt.getTime() <= now.getTime()) {
-        this.dueQueue.shift();
-        this.removeFromPool(head.card.id);
-        if (this.shouldSkip(head.card)) {
-          this.associationSkip(head.card);
+    while (true) {
+      const dueReady = this.isDueReady(now);
+      const hasPool = this.pool.length > 0;
+
+      if (!dueReady && !hasPool) {
+        return undefined;
+      }
+
+      const takeDue =
+        dueReady && (!hasPool || Math.random() < this.reviewBias);
+
+      if (takeDue) {
+        const card = this.shiftDue(now);
+        if (!card) {
+          continue;
+        }
+        if (this.shouldSkip(card)) {
+          this.associationSkip(card);
           continue;
         }
         this.seen += 1;
-        return head.card;
+        return card;
       }
-      break;
-    }
 
-    while (this.pool.length) {
-      const card = this.pool.shift()!;
-      if (this.shouldSkip(card)) {
-        this.associationSkip(card);
-        continue;
+      if (hasPool) {
+        const card = this.pool.shift()!;
+        if (this.shouldSkip(card)) {
+          this.associationSkip(card);
+          continue;
+        }
+        this.seen += 1;
+        return card;
       }
-      this.seen += 1;
-      return card;
     }
-
-    return undefined;
   }
 
   remaining(): number {
@@ -125,6 +140,28 @@ export class SessionScheduler {
     card.score = -1;
     card.firstTime = true;
     card.dueAt = null;
+  }
+
+  private isDueReady(now: Date): boolean {
+    if (this.dueQueue.length === 0) return false;
+    const head = this.dueQueue[0];
+    const dueAt = head.dueDate;
+    if (!dueAt) return true;
+    return dueAt.getTime() <= now.getTime();
+  }
+
+  private shiftDue(now: Date): SessionCard | null {
+    while (this.dueQueue.length) {
+      const head = this.dueQueue[0];
+      const dueAt = head.dueDate;
+      if (dueAt && dueAt.getTime() > now.getTime()) {
+        return null;
+      }
+      this.dueQueue.shift();
+      this.removeFromPool(head.card.id);
+      return head.card;
+    }
+    return null;
   }
 
   private insertScheduled(card: SessionCard, dueDate: Date | null) {

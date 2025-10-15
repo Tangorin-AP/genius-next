@@ -169,7 +169,9 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     fetchSelection(deckId, params)
       .then((plan) => {
         if (!active) return;
-        const scheduler = new SessionScheduler(plan);
+        const slider = paramsRef.current.slider;
+        const reviewBias = Math.max(0, Math.min(1, slider / 100));
+        const scheduler = new SessionScheduler(plan, { reviewBias });
         setSession({ scheduler, current: null });
         setProgress(scheduler.progress());
         takeNextCard(scheduler);
