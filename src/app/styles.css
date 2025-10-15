@@ -219,11 +219,11 @@ body {
 .deck-card__edit-button:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .deck-card__edit-button:focus-visible{outline:2px solid rgba(255,255,255,.65);outline-offset:2px;border-radius:4px}
 .deck-card__edit-button span[aria-hidden="true"]{display:inline-flex}
-.deck-card__delete-button{appearance:none;border:none;background:none;color:rgba(255,255,255,.7);display:inline-flex;align-items:center;gap:.35rem;padding:.1rem 0;font-size:1rem;line-height:1;cursor:pointer;transition:color .2s ease,transform .2s ease}
-.deck-card__delete-button:hover{color:#fff;transform:translateY(-1px)}
-.deck-card__delete-button:focus-visible{outline:2px solid rgba(255,255,255,.65);outline-offset:2px;border-radius:4px}
+.deck-card__delete-button{appearance:none;position:absolute;left:1.2rem;bottom:1.2rem;border:1px solid rgba(255,255,255,.32);background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;width:2.25rem;height:2.25rem;border-radius:999px;font-size:1rem;line-height:1;cursor:pointer;transition:background .2s ease,border-color .2s ease,transform .2s ease,color .2s ease}
+.deck-card__delete-button:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.55);transform:translateY(-1px)}
+.deck-card__delete-button:focus-visible{outline:2px solid rgba(255,255,255,.7);outline-offset:3px}
 .deck-card__delete-button:disabled{opacity:.45;cursor:not-allowed;transform:none}
-.deck-card__delete-button span[aria-hidden="true"]{display:inline-flex}
+.deck-card__delete-button span[aria-hidden="true"]{display:inline-flex;font-size:1.05rem;line-height:1}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
 
 .deck-header{flex-direction:row;flex-wrap:wrap;align-items:center;gap:.75rem}
