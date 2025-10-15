@@ -88,6 +88,13 @@ export default function DeckCardManage({ deck }: Props) {
     </Link>
   );
 
+  const linkContent = (
+    <>
+      <span className="deck-card__name">{deck.name}</span>
+      <span className="deck-card__meta">{deck._count.pairs} cards</span>
+    </>
+  );
+
   return (
     <article className="deck-card deck-card--manage">
       <div className="deck-card__delete">
