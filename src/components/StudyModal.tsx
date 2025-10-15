@@ -73,11 +73,6 @@ function broadcastScore(pairId: string, score: number) {
   window.dispatchEvent(new CustomEvent('deck-score', { detail: { pairId, score } }));
 }
 
-function formatScore(score: number): string {
-  if (score < 0) return '—';
-  return String(score);
-}
-
 export default function StudyModal({ deckId }: { deckId: string }) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -417,12 +412,23 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [applyRight, applySkip, applyWrong, autoChoice, closing, phase, visible]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!(visible || closing)) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      close();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [close, closing, visible]);
+
 
   if (!visible) return null;
 
   const isIntro = Boolean(current?.firstTime);
-  const scoreDisplay = current ? formatScore(current.score) : '—';
-  const metaLabel = isIntro ? 'New item' : `Score ${scoreDisplay}`;
+  const metaLabel = isIntro ? 'New item' : null;
   const progressPercent = progress.total === 0 ? 0 : Math.min(1, progress.seen / progress.total);
   const showAnswer = Boolean(current && (phase === 'review' || phase === 'check'));
   const answerDisplay = showAnswer ? current?.answer ?? '' : '';
@@ -452,15 +458,12 @@ export default function StudyModal({ deckId }: { deckId: string }) {
           ) : !current ? (
             <div className="study-empty">You're all caught up for now. Try broadening the study settings to review more cards.</div>
           ) : (
-            <div className="quiz-layout">
-              <div className="quiz-meta">
-                <div className="quiz-meta__primary">
-                  <span className="quiz-chip">{current.direction ?? 'AB'}</span>
-                  <span aria-hidden="true" className="quiz-meta__dot">•</span>
-                  <span className="quiz-meta__label">{metaLabel}</span>
+              <div className="quiz-layout">
+                <div className="quiz-meta">
+                  <div className="quiz-meta__primary">
+                    {metaLabel && <span className="quiz-meta__label">{metaLabel}</span>}
+                  </div>
                 </div>
-                <div className="quiz-meta__progress">{progress.seen} / {progress.total}</div>
-              </div>
               <div className="quiz-progress">
                 <div className="quiz-progress__track">
                   <div className="quiz-progress__fill" style={{ width: `${Math.round(progressPercent * 100)}%` }} />
@@ -488,15 +491,6 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                         void applyRight();
                       } else {
                         void doSubmit();
-                      }
-                    } else if (event.key === 'Escape') {
-                      event.preventDefault();
-                      if (phase === 'review') {
-                        setInput(current.answer);
-                      } else if (phase === 'quiz') {
-                        setInput('');
-                        setAutoChoice(null);
-                        setCheckScore(null);
                       }
                     }
                   }}
