@@ -10,10 +10,16 @@ const PASS_THRESHOLD = 0.5;
 type StudyParams = {
   slider: number;
   minimumScore: number;
+  baseMinimumScore: number;
   mode: MatchingMode;
 };
 
-const DEFAULT_PARAMS: StudyParams = { slider: 0, minimumScore: -1, mode: defaultMatchingMode() };
+const DEFAULT_PARAMS: StudyParams = {
+  slider: 0,
+  minimumScore: -1,
+  baseMinimumScore: -1,
+  mode: defaultMatchingMode(),
+};
 
 type SessionState = {
   scheduler: SessionScheduler | null;
@@ -35,15 +41,26 @@ function readParams(): StudyParams {
     }
     if (!Number.isFinite(slider)) slider = DEFAULT_PARAMS.slider;
     slider = Math.max(0, Math.min(100, Math.round(slider)));
-    const minimumScore =
+    const explicitMinimum =
       typeof parsed.minimumScore === 'number'
         ? parsed.minimumScore
         : typeof parsed.min === 'number'
           ? parsed.min
-          : DEFAULT_PARAMS.minimumScore;
+          : null;
+    const baseMinimumScore =
+      typeof parsed.baseMinimumScore === 'number'
+        ? parsed.baseMinimumScore
+        : explicitMinimum !== null && slider < 100
+          ? explicitMinimum
+          : DEFAULT_PARAMS.baseMinimumScore;
+    const minimumScore =
+      slider >= 100
+        ? Math.max(0, explicitMinimum ?? baseMinimumScore)
+        : baseMinimumScore;
     return {
       slider,
       minimumScore,
+      baseMinimumScore,
       mode: typeof parsed.mode === 'string' ? (parsed.mode as MatchingMode) : DEFAULT_PARAMS.mode,
     };
   } catch {
@@ -54,7 +71,10 @@ function readParams(): StudyParams {
 async function fetchSelection(deckId: string, params: StudyParams): Promise<RawSessionPlan> {
   const slider = Math.max(0, Math.min(100, Math.round(params.slider)));
   const m = 2 * (slider / 100);
-  const minimumScore = slider >= 100 ? 0 : params.minimumScore;
+  const baseMinimumScore = Number.isFinite(params.baseMinimumScore)
+    ? params.baseMinimumScore
+    : DEFAULT_PARAMS.baseMinimumScore;
+  const minimumScore = slider >= 100 ? Math.max(0, baseMinimumScore) : baseMinimumScore;
   const count = UNSCHEDULED_SAMPLE_COUNT;
   const search = new URLSearchParams({
     deckId,
