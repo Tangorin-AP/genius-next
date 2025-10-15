@@ -429,7 +429,9 @@ export default function StudyModal({ deckId }: { deckId: string }) {
 
   const isIntro = Boolean(current?.firstTime);
   const metaLabel = isIntro ? 'New item' : null;
-  const progressPercent = progress.total === 0 ? 0 : Math.min(1, progress.seen / progress.total);
+  const remainingCount = scheduler ? scheduler.remaining() : Math.max(progress.total - progress.seen, 0);
+  const dynamicTotal = progress.seen + remainingCount;
+  const progressPercent = dynamicTotal === 0 ? 0 : Math.min(1, progress.seen / dynamicTotal);
   const showAnswer = Boolean(current && (phase === 'review' || phase === 'check'));
   const answerDisplay = showAnswer ? current?.answer ?? '' : '';
   const disableEntry = submitting || phase === 'check';

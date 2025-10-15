@@ -44,8 +44,6 @@ export class SessionScheduler {
 
   private seen: number;
 
-  private readonly total: number;
-
   private readonly reviewBias: number;
 
   constructor(seed: RawSessionPlan, options: SchedulerOptions = {}) {
@@ -60,7 +58,6 @@ export class SessionScheduler {
     this.dueQueue = dueCards.map((card) => ({ card, dueDate: card.dueAt }));
     this.pool = poolCards;
     this.seen = 0;
-    this.total = this.dueQueue.length + this.pool.length;
     const bias = typeof options.reviewBias === 'number' ? options.reviewBias : 1;
     this.reviewBias = Math.max(0, Math.min(1, Number.isFinite(bias) ? bias : 1));
   }
@@ -107,7 +104,8 @@ export class SessionScheduler {
   }
 
   progress(): { seen: number; total: number } {
-    return { seen: this.seen, total: this.total };
+    const total = this.seen + this.remaining();
+    return { seen: this.seen, total };
   }
 
   associationRight(card: SessionCard, now: Date = new Date()) {
