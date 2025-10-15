@@ -85,6 +85,17 @@ export default function DeckCardManage({ deck }: Props) {
 
   return (
     <article className="deck-card deck-card--manage">
+      <div className="deck-card__delete">
+        <DeleteDeckForm
+          deckId={deck.id}
+          className="deck-card__delete-button"
+          ariaLabel={`Delete ${deck.name}`}
+          title="Delete pack"
+        >
+          <span aria-hidden="true">🗑</span>
+          <span className="sr-only">Delete pack</span>
+        </DeleteDeckForm>
+      </div>
       <div className="deck-card__header-row">
         <div className="deck-card__title-block">
           {isEditing ? (
@@ -116,24 +127,18 @@ export default function DeckCardManage({ deck }: Props) {
             </Link>
           )}
         </div>
-        <button
-          type="button"
-          className="deck-card__icon-button"
-          aria-label={`Rename ${deck.name}`}
-          onClick={handleEditClick}
-          disabled={isPending}
-        >
-          <span aria-hidden="true">✎</span>
-          <span className="sr-only">Rename pack</span>
-        </button>
-      </div>
-      <div className="deck-card__form deck-card__form--danger">
-        <DeleteDeckForm
-          deckId={deck.id}
-          className="deck-card__button deck-card__button--danger"
-        >
-          Delete pack
-        </DeleteDeckForm>
+        {!isEditing && (
+          <button
+            type="button"
+            className="deck-card__edit-button"
+            aria-label={`Rename ${deck.name}`}
+            onClick={handleEditClick}
+            disabled={isPending}
+          >
+            <span aria-hidden="true">✎</span>
+            <span className="sr-only">Rename pack</span>
+          </button>
+        )}
       </div>
     </article>
   );
