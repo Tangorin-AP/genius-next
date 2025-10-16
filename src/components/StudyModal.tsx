@@ -5,6 +5,7 @@ import { RawSessionPlan, SessionCard, SessionScheduler } from '@/lib/session';
 import { computeCorrectness, defaultMatchingMode, MatchingMode, normalizeAnswerDisplay } from '@/lib/matching';
 import { UNSCHEDULED_SAMPLE_COUNT } from '@/lib/constants';
 import { diffWordsWithSpace } from 'diff';
+import { useStudySounds } from '@/hooks/useStudySounds';
 
 const PASS_THRESHOLD = 0.5;
 
@@ -143,6 +144,9 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const yesRef = useRef<HTMLButtonElement>(null);
   const noRef = useRef<HTMLButtonElement>(null);
   const okRef = useRef<HTMLButtonElement>(null);
+  const lastCardIdRef = useRef<string | null>(null);
+
+  const { playNew, playRight, playWrong } = useStudySounds(visible && !closing);
 
   const teardownSession = useCallback(() => {
     setSession({ scheduler: null, current: null });
@@ -306,6 +310,21 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const current = session.current;
 
   useEffect(() => {
+    if (!visible || closing) return;
+    if (!current) {
+      lastCardIdRef.current = null;
+      return;
+    }
+    const cardId = current.id;
+    if (cardId !== lastCardIdRef.current) {
+      if (current.firstTime) {
+        playNew();
+      }
+      lastCardIdRef.current = cardId;
+    }
+  }, [closing, current, playNew, visible]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!visible || closing) return;
     if (!current) return;
@@ -415,18 +434,24 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       const { mode } = paramsRef.current;
       const score = await computeCorrectness(current.answer, input, mode);
       if (score >= 0.999) {
+        playRight();
         setSubmitting(false);
         await applyRight();
         return;
       }
       inputRef.current?.blur();
       setCheckScore(score);
+      if (score > PASS_THRESHOLD) {
+        playRight();
+      } else if (score <= 0) {
+        playWrong();
+      }
       setAutoChoice(score >= PASS_THRESHOLD ? 'YES' : 'NO');
       setPhase('check');
     } finally {
       setSubmitting(false);
     }
-  }, [applyRight, current, input, scheduler, submitting]);
+  }, [applyRight, current, input, playRight, playWrong, scheduler, submitting]);
 
   useEffect(() => {
     if (!visible || closing) return;
