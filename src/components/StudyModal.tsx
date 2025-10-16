@@ -474,11 +474,15 @@ export default function StudyModal({ deckId }: { deckId: string }) {
               <div className="quiz-panels">
                 <div className="quiz-panel">
                   <div className="quiz-panel__label">Question</div>
-                  <div className="quiz-panel__content">{current.question}</div>
+                  <div className="quiz-panel__content" aria-live="polite">
+                    {current.question}
+                  </div>
                 </div>
                 <div className={`quiz-panel quiz-panel--answer${showAnswer ? ' quiz-panel--answer-visible' : ''}`}>
                   <div className="quiz-panel__label">Answer</div>
-                  <div className="quiz-panel__content">{answerDisplay || <>&nbsp;</>}</div>
+                  <div className="quiz-panel__content" aria-live="polite">
+                    {answerDisplay || <>&nbsp;</>}
+                  </div>
                 </div>
               </div>
               <div className="quiz-entry">
@@ -503,16 +507,16 @@ export default function StudyModal({ deckId }: { deckId: string }) {
               {phase === 'check' && (
                 <div className="quiz-diff">
                   <div className="quiz-diff__row">
-                    <span>You typed</span>
-                    <span>{typedLabel}</span>
+                    <span className="quiz-diff__label">You typed</span>
+                    <div className="quiz-diff__value" aria-live="polite">
+                      {typedLabel}
+                    </div>
                   </div>
                   <div className="quiz-diff__row">
-                    <span>Expected</span>
-                    <span>{expectedLabel}</span>
-                  </div>
-                  <div className="quiz-diff__row">
-                    <span>Similarity</span>
-                    <span>{checkScore !== null ? checkScore.toFixed(2) : '—'}</span>
+                    <span className="quiz-diff__label">Expected</span>
+                    <div className="quiz-diff__value" aria-live="polite">
+                      {expectedLabel}
+                    </div>
                   </div>
                 </div>
               )}
