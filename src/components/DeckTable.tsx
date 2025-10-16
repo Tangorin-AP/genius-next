@@ -224,19 +224,21 @@ export default function DeckTable({ deckId, rows }: { deckId: string; rows: Row[
     });
   }, []);
 
+  useEffect(() => {
+    const detail = { hasDirty, saving, isRefreshing };
+    window.dispatchEvent(new CustomEvent('deck-save-state', { detail }));
+  }, [hasDirty, isRefreshing, saving]);
+
+  useEffect(() => {
+    const handler = () => {
+      handleSaveAll();
+    };
+    window.addEventListener('deck-save-request', handler);
+    return () => window.removeEventListener('deck-save-request', handler);
+  }, [handleSaveAll]);
+
   return (
     <>
-      <div className="table-actions">
-        <button
-          type="button"
-          className="chip chip--primary"
-          onClick={handleSaveAll}
-          disabled={!hasDirty || saving || isRefreshing}
-        >
-          {saving || isRefreshing ? 'Saving…' : 'Save changes'}
-        </button>
-        <span className="table-actions__hint">Use this to confirm edits and deletions.</span>
-      </div>
       <div className="boxed table-scroll">
         <div className="table-grid">
           <div className="header">
