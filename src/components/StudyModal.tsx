@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RawSessionPlan, SessionCard, SessionScheduler } from '@/lib/session';
 import { computeCorrectness, defaultMatchingMode, MatchingMode, normalizeAnswerDisplay } from '@/lib/matching';
 import { UNSCHEDULED_SAMPLE_COUNT } from '@/lib/constants';
+import { diffWordsWithSpace } from 'diff';
 
 const PASS_THRESHOLD = 0.5;
 
@@ -14,6 +15,55 @@ type StudyParams = {
 };
 
 const DEFAULT_PARAMS: StudyParams = { slider: 0, minimumScore: -1, mode: defaultMatchingMode() };
+
+type DiffToken = {
+  text: string;
+  type: 'match' | 'extra' | 'missing' | null;
+};
+
+type DiffResult = {
+  typed: DiffToken[];
+  expected: DiffToken[];
+};
+
+function computeDiffTokens(expected: string, typed: string): DiffResult {
+  if (!expected && !typed) {
+    return { typed: [], expected: [] };
+  }
+
+  const parts = diffWordsWithSpace(expected, typed);
+  const typedTokens: DiffToken[] = [];
+  const expectedTokens: DiffToken[] = [];
+
+  for (const part of parts) {
+    if (part.added) {
+      typedTokens.push({ text: part.value, type: part.value.trim() ? 'extra' : null });
+    } else if (part.removed) {
+      expectedTokens.push({ text: part.value, type: part.value.trim() ? 'missing' : null });
+    } else {
+      const tokenType: DiffToken['type'] = part.value.trim() ? 'match' : null;
+      typedTokens.push({ text: part.value, type: tokenType });
+      expectedTokens.push({ text: part.value, type: tokenType });
+    }
+  }
+
+  return { typed: typedTokens, expected: expectedTokens };
+}
+
+function renderDiffTokens(tokens: DiffToken[], keyPrefix: string) {
+  return tokens.map((token, index) => {
+    if (!token.text) return null;
+    const key = `${keyPrefix}-${index}`;
+    if (!token.type) {
+      return <span key={key}>{token.text}</span>;
+    }
+    return (
+      <span key={key} className={`quiz-diff__token quiz-diff__token--${token.type}`}>
+        {token.text}
+      </span>
+    );
+  });
+}
 
 type SessionState = {
   scheduler: SessionScheduler | null;
@@ -437,6 +487,12 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const disableEntry = submitting || phase === 'check';
   const typedLabel = normalizeAnswerDisplay(input);
   const expectedLabel = current ? normalizeAnswerDisplay(current.answer) : '';
+  const typedDiffSource = typedLabel === '—' ? '' : typedLabel;
+  const expectedDiffSource = expectedLabel === '—' ? '' : expectedLabel;
+  const diffTokens = useMemo(
+    () => computeDiffTokens(expectedDiffSource, typedDiffSource),
+    [expectedDiffSource, typedDiffSource],
+  );
   const overlayClassName = `screen screen--study${closing ? ' screen--closing' : ''}`;
   const modalClassName = `modal boxed modal--study${closing ? ' modal--closing' : ''}`;
   const bodyClassName = `modal-body${isIntro ? ' modal-body--intro' : ''}`;
@@ -474,11 +530,15 @@ export default function StudyModal({ deckId }: { deckId: string }) {
               <div className="quiz-panels">
                 <div className="quiz-panel">
                   <div className="quiz-panel__label">Question</div>
-                  <div className="quiz-panel__content">{current.question}</div>
+                  <div className="quiz-panel__content" aria-live="polite">
+                    {current.question}
+                  </div>
                 </div>
                 <div className={`quiz-panel quiz-panel--answer${showAnswer ? ' quiz-panel--answer-visible' : ''}`}>
                   <div className="quiz-panel__label">Answer</div>
-                  <div className="quiz-panel__content">{answerDisplay || <>&nbsp;</>}</div>
+                  <div className="quiz-panel__content" aria-live="polite">
+                    {answerDisplay || <>&nbsp;</>}
+                  </div>
                 </div>
               </div>
               <div className="quiz-entry">
@@ -503,16 +563,18 @@ export default function StudyModal({ deckId }: { deckId: string }) {
               {phase === 'check' && (
                 <div className="quiz-diff">
                   <div className="quiz-diff__row">
-                    <span>You typed</span>
-                    <span>{typedLabel}</span>
+                    <span className="quiz-diff__label">You typed</span>
+                    <div className="quiz-diff__value" aria-live="polite">
+                      {diffTokens.typed.length > 0 ? renderDiffTokens(diffTokens.typed, 'typed') : typedLabel}
+                    </div>
                   </div>
                   <div className="quiz-diff__row">
-                    <span>Expected</span>
-                    <span>{expectedLabel}</span>
-                  </div>
-                  <div className="quiz-diff__row">
-                    <span>Similarity</span>
-                    <span>{checkScore !== null ? checkScore.toFixed(2) : '—'}</span>
+                    <span className="quiz-diff__label">Expected</span>
+                    <div className="quiz-diff__value" aria-live="polite">
+                      {diffTokens.expected.length > 0
+                        ? renderDiffTokens(diffTokens.expected, 'expected')
+                        : expectedLabel}
+                    </div>
                   </div>
                 </div>
               )}
