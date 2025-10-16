@@ -5,6 +5,12 @@ import { useEffect, useState } from 'react';
 import { defaultMatchingMode, MatchingMode } from '@/lib/matching';
 import { UNSCHEDULED_SAMPLE_COUNT } from '@/lib/constants';
 
+type SaveState = {
+  hasDirty: boolean;
+  saving: boolean;
+  isRefreshing: boolean;
+};
+
 export default function DeckControls({ stats }: { stats: {pairs:number}; }){
   const [q, setQ] = useState('');
   const [slider, setSlider] = useState(0);
@@ -12,6 +18,7 @@ export default function DeckControls({ stats }: { stats: {pairs:number}; }){
   const [mode, setMode] = useState<MatchingMode>(defaultMatchingMode());
   const [openInfo, setOpenInfo] = useState(false);
   const [openSettings, setOpenSettings] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>({ hasDirty: false, saving: false, isRefreshing: false });
 
   useEffect(() => {
     const clampSliderValue = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
@@ -44,6 +51,16 @@ export default function DeckControls({ stats }: { stats: {pairs:number}; }){
   }, []);
 
   useEffect(()=>{ window.dispatchEvent(new CustomEvent('deck-search', { detail: q })); }, [q]);
+
+  useEffect(() => {
+    const handler: EventListener = (event) => {
+      const detail = (event as CustomEvent<SaveState>).detail;
+      if (!detail) return;
+      setSaveState(detail);
+    };
+    window.addEventListener('deck-save-state', handler);
+    return () => window.removeEventListener('deck-save-state', handler);
+  }, []);
 
   useEffect(() => {
     if (!openSettings) return;
@@ -104,6 +121,14 @@ export default function DeckControls({ stats }: { stats: {pairs:number}; }){
         </div>
         <button onClick={()=>setOpenInfo(true)} className="toolbtn" title="Info">i</button>
         <div className="spacer"></div>
+        <button
+          type="button"
+          className="chip chip--primary"
+          onClick={() => window.dispatchEvent(new CustomEvent('deck-save-request'))}
+          disabled={!saveState.hasDirty || saveState.saving || saveState.isRefreshing}
+        >
+          {saveState.saving || saveState.isRefreshing ? 'Saving…' : 'Save changes'}
+        </button>
         <input id="searchBox" className="search" placeholder="Search" value={q} onChange={e=>setQ(e.currentTarget.value)} />
       </div>
 
