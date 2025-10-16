@@ -8,7 +8,8 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "migrate": "prisma migrate dev --name init",
-    "seed": "node ./scripts/seed.mjs"
+    "seed": "node ./scripts/seed.mjs",
+    "test": "vitest run"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
@@ -28,6 +29,7 @@
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
     "prisma": "5.19.1",
-    "typescript": "5.6.2"
+    "typescript": "5.6.2",
+    "vitest": "2.1.1"
   }
 }
