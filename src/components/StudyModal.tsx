@@ -475,6 +475,15 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   }, [close, closing, visible]);
 
 
+  const typedLabel = normalizeAnswerDisplay(input);
+  const expectedLabel = current ? normalizeAnswerDisplay(current.answer) : '';
+  const typedDiffSource = typedLabel === '—' ? '' : typedLabel;
+  const expectedDiffSource = expectedLabel === '—' ? '' : expectedLabel;
+  const diffTokens = useMemo(
+    () => computeDiffTokens(expectedDiffSource, typedDiffSource),
+    [expectedDiffSource, typedDiffSource],
+  );
+
   if (!visible) return null;
 
   const isIntro = Boolean(current?.firstTime);
@@ -485,14 +494,6 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const showAnswer = Boolean(current && (phase === 'review' || phase === 'check'));
   const answerDisplay = showAnswer ? current?.answer ?? '' : '';
   const disableEntry = submitting || phase === 'check';
-  const typedLabel = normalizeAnswerDisplay(input);
-  const expectedLabel = current ? normalizeAnswerDisplay(current.answer) : '';
-  const typedDiffSource = typedLabel === '—' ? '' : typedLabel;
-  const expectedDiffSource = expectedLabel === '—' ? '' : expectedLabel;
-  const diffTokens = useMemo(
-    () => computeDiffTokens(expectedDiffSource, typedDiffSource),
-    [expectedDiffSource, typedDiffSource],
-  );
   const overlayClassName = `screen screen--study${closing ? ' screen--closing' : ''}`;
   const modalClassName = `modal boxed modal--study${closing ? ' modal--closing' : ''}`;
   const bodyClassName = `modal-body${isIntro ? ' modal-body--intro' : ''}`;
