@@ -565,15 +565,13 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   <div className="quiz-diff__row">
                     <span className="quiz-diff__label">You typed</span>
                     <div className="quiz-diff__value" aria-live="polite">
-                      {diffTokens.typed.length > 0 ? renderDiffTokens(diffTokens.typed, 'typed') : typedLabel}
+                      {typedLabel}
                     </div>
                   </div>
                   <div className="quiz-diff__row">
                     <span className="quiz-diff__label">Expected</span>
                     <div className="quiz-diff__value" aria-live="polite">
-                      {diffTokens.expected.length > 0
-                        ? renderDiffTokens(diffTokens.expected, 'expected')
-                        : expectedLabel}
+                      {expectedLabel}
                     </div>
                   </div>
                 </div>
