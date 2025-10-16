@@ -1270,7 +1270,6 @@ const SOUND_DATA_URIS: Record<StudySoundName, string> = {
 
 function playAudioElement(element: HTMLAudioElement) {
   try {
-    element.pause();
     element.currentTime = 0;
     const playPromise = element.play();
     if (playPromise && typeof playPromise.catch === 'function') {
@@ -1283,197 +1282,60 @@ function playAudioElement(element: HTMLAudioElement) {
   }
 }
 
-type DecodeMap = Record<StudySoundName, Promise<AudioBuffer | null> | null>;
-type BufferMap = Record<StudySoundName, AudioBuffer | null>;
-
-function resumeContext(context: AudioContext) {
-  try {
-    if (context.state === 'suspended') {
-      void context.resume();
-    }
-  } catch {
-    // Ignore resume failures triggered by unsupported browsers.
-  }
-}
-
-function startBufferPlayback(context: AudioContext, buffer: AudioBuffer) {
-  try {
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(context.destination);
-    source.start();
-  } catch {
-    // Ignore playback failures and fall back to HTMLAudio if needed.
-  }
-}
-
 export function useStudySounds(active: boolean): StudySoundControls {
-  const htmlAudiosRef = useRef<AudioMap>({ new: null, right: null, wrong: null });
-  const buffersRef = useRef<BufferMap>({ new: null, right: null, wrong: null });
-  const decodePromisesRef = useRef<DecodeMap>({ new: null, right: null, wrong: null });
-  const contextRef = useRef<AudioContext | null>(null);
+  const audiosRef = useRef<AudioMap>({ new: null, right: null, wrong: null });
   const activeRef = useRef(active);
   activeRef.current = active;
 
-  const getFallbackAudio = useCallback((name: StudySoundName): HTMLAudioElement | null => {
-    if (!activeRef.current) return null;
-    if (typeof Audio === 'undefined') return null;
-    let element = htmlAudiosRef.current[name];
-    if (!element) {
-      element = new Audio(SOUND_DATA_URIS[name]);
-      element.preload = 'auto';
-      htmlAudiosRef.current[name] = element;
-    }
-    return element;
-  }, []);
-
-  const ensureContext = useCallback((): AudioContext | null => {
-    if (!activeRef.current) return null;
-    if (typeof window === 'undefined') return null;
-    const AudioCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtor) return null;
-    if (!contextRef.current) {
-      try {
-        contextRef.current = new AudioCtor();
-      } catch {
-        contextRef.current = null;
-      }
-    }
-    return contextRef.current;
-  }, []);
-
-  const loadBuffer = useCallback(
-    (context: AudioContext, name: StudySoundName): Promise<AudioBuffer | null> | null => {
-      const existingBuffer = buffersRef.current[name];
-      if (existingBuffer) {
-        return Promise.resolve(existingBuffer);
-      }
-      const existingPromise = decodePromisesRef.current[name];
-      if (existingPromise) {
-        return existingPromise;
-      }
-
-      try {
-        const promise = fetch(SOUND_DATA_URIS[name])
-          .then((response) => response.arrayBuffer())
-          .then(
-            (arrayBuffer) =>
-              new Promise<AudioBuffer>((resolve, reject) => {
-                context.decodeAudioData(arrayBuffer, resolve, reject);
-              }),
-          )
-          .then((buffer) => {
-            buffersRef.current[name] = buffer;
-            return buffer;
-          })
-          .catch(() => null)
-          .finally(() => {
-            decodePromisesRef.current[name] = null;
-          });
-        decodePromisesRef.current[name] = promise;
-        return promise;
-      } catch {
-        decodePromisesRef.current[name] = null;
-        return null;
-      }
-    },
-    [],
-  );
-
   useEffect(() => {
     if (!active) return;
-    const context = ensureContext();
-    if (!context) return;
-
-    resumeContext(context);
-
-    const handleUserGesture = () => {
-      if (!contextRef.current) return;
-      resumeContext(contextRef.current);
-    };
-
-    window.addEventListener('pointerdown', handleUserGesture);
-    window.addEventListener('keydown', handleUserGesture);
+    if (typeof window === 'undefined') return;
+    if (typeof Audio === 'undefined') return;
 
     (Object.keys(SOUND_DATA_URIS) as StudySoundName[]).forEach((key) => {
-      void loadBuffer(context, key);
+      const existing = audiosRef.current[key];
+      if (existing) return;
+      const audio = new Audio(SOUND_DATA_URIS[key]);
+      audio.preload = 'auto';
+      audio.volume = 1;
+      audiosRef.current[key] = audio;
     });
-
-    return () => {
-      window.removeEventListener('pointerdown', handleUserGesture);
-      window.removeEventListener('keydown', handleUserGesture);
-    };
-  }, [active, ensureContext, loadBuffer]);
+  }, [active]);
 
   useEffect(() => {
     return () => {
       (Object.keys(SOUND_DATA_URIS) as StudySoundName[]).forEach((key) => {
-        const audio = htmlAudiosRef.current[key];
-        if (audio) {
-          audio.pause();
-          try {
-            audio.currentTime = 0;
-          } catch {
-            // Ignore reset errors.
-          }
-          htmlAudiosRef.current[key] = null;
+        const audio = audiosRef.current[key];
+        if (!audio) return;
+        audio.pause();
+        try {
+          audio.currentTime = 0;
+        } catch {
+          // Ignore reset errors.
         }
       });
-
-      const context = contextRef.current;
-      contextRef.current = null;
-      if (context && typeof context.close === 'function') {
-        try {
-          void context.close();
-        } catch {
-          // Ignore context close errors.
-        }
-      }
     };
+  }, []);
+
+  const getAudio = useCallback((name: StudySoundName): HTMLAudioElement | null => {
+    if (!activeRef.current) return null;
+    if (typeof Audio === 'undefined') return null;
+    let audio = audiosRef.current[name];
+    if (!audio) {
+      audio = new Audio(SOUND_DATA_URIS[name]);
+      audio.preload = 'auto';
+      audiosRef.current[name] = audio;
+    }
+    return audio;
   }, []);
 
   const play = useCallback(
     (name: StudySoundName) => {
-      if (!activeRef.current) return;
-
-      const context = ensureContext();
-      if (context) {
-        const buffer = buffersRef.current[name];
-        if (buffer) {
-          resumeContext(context);
-          startBufferPlayback(context, buffer);
-          return;
-        }
-
-        const promise = loadBuffer(context, name);
-        if (promise) {
-          promise
-            .then((decoded) => {
-              if (!decoded) {
-                const fallback = getFallbackAudio(name);
-                if (fallback) playAudioElement(fallback);
-                return;
-              }
-              if (!activeRef.current) return;
-              const freshContext = contextRef.current;
-              if (!freshContext) return;
-              resumeContext(freshContext);
-              startBufferPlayback(freshContext, decoded);
-            })
-            .catch(() => {
-              const fallback = getFallbackAudio(name);
-              if (fallback) playAudioElement(fallback);
-            });
-          return;
-        }
-      }
-
-      const fallback = getFallbackAudio(name);
-      if (fallback) {
-        playAudioElement(fallback);
-      }
+      const audio = getAudio(name);
+      if (!audio) return;
+      playAudioElement(audio);
     },
-    [ensureContext, getFallbackAudio, loadBuffer],
+    [getAudio],
   );
 
   return {
