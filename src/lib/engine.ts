@@ -4,6 +4,11 @@ import { prisma } from './prisma';
 import { AssocView, Direction } from './types';
 
 const SEC = 1000;
+const RANDOM_RANGE = 0x7fffffff;
+const RANDOM_STATE_SIZE = 31;
+const RANDOM_SEPARATION = 3;
+const RANDOM_WARMUP = RANDOM_STATE_SIZE * 10;
+const BUCKET_COUNT = 11;
 
 export function nextDueFromScore(score: number): Date {
   const safeScore = Math.max(0, score);
@@ -47,19 +52,146 @@ function scoreValue(assoc: { score: number | null }): number {
   return typeof raw === 'number' ? raw : -1;
 }
 
-function fisherYates<T>(list: T[]): T[] {
-  const copy = [...list];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
 function importanceOf(assoc: AssociationRecord): number {
   const pair = assoc.pair as { importance?: number };
   const value = pair?.importance;
   return typeof value === 'number' ? value : 0;
+}
+
+function normalizeSeed(rawSeed: number): number {
+  const normalized = Math.abs(Math.trunc(rawSeed)) % RANDOM_RANGE;
+  return normalized === 0 ? 1 : normalized;
+}
+
+function parseSeedFromEnv(): number | null {
+  if (typeof process === 'undefined') return null;
+  const raw = process.env.GENIUS_RANDOM_SEED;
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return null;
+  return normalizeSeed(parsed);
+}
+
+function computeDefaultSeed(): number {
+  const seconds = Math.floor(Date.now() / SEC);
+  const pid = typeof process !== 'undefined' && typeof process.pid === 'number' ? process.pid : 1;
+  const seed = seconds * pid;
+  return normalizeSeed(seed);
+}
+
+class GeniusRandom {
+  private state: Uint32Array;
+
+  private fptr: number;
+
+  private rptr: number;
+
+  constructor(seed: number) {
+    this.state = new Uint32Array(RANDOM_STATE_SIZE);
+    this.fptr = RANDOM_SEPARATION;
+    this.rptr = 0;
+    this.seed(seed);
+  }
+
+  private seed(seed: number): void {
+    let value = normalizeSeed(seed);
+    this.state[0] = value;
+    for (let i = 1; i < RANDOM_STATE_SIZE; i += 1) {
+      value = this.parkMiller(value);
+      this.state[i] = value;
+    }
+    this.fptr = RANDOM_SEPARATION;
+    this.rptr = 0;
+    for (let i = 0; i < RANDOM_WARMUP; i += 1) {
+      this.nextInt();
+    }
+  }
+
+  private parkMiller(previous: number): number {
+    const hi = Math.floor(previous / 127773);
+    const lo = previous % 127773;
+    let next = 16807 * lo - 2836 * hi;
+    if (next <= 0) {
+      next += RANDOM_RANGE;
+    }
+    return next >>> 0;
+  }
+
+  nextInt(): number {
+    const sum = (this.state[this.fptr] + this.state[this.rptr]) >>> 0;
+    this.state[this.fptr] = sum;
+    const value = (sum >>> 1) & RANDOM_RANGE;
+    this.fptr = (this.fptr + 1) % RANDOM_STATE_SIZE;
+    this.rptr = (this.rptr + 1) % RANDOM_STATE_SIZE;
+    return value;
+  }
+
+  nextFloat(): number {
+    return this.nextInt() / RANDOM_RANGE;
+  }
+
+  coinFlip(): boolean {
+    return (this.nextInt() & 1) === 1;
+  }
+}
+
+let sharedRandom: GeniusRandom | null = null;
+let sharedSeed: number | null = null;
+let sharedEnvKey: string | null = null;
+
+function getRandomGenerator(): GeniusRandom {
+  const envSeed = parseSeedFromEnv();
+  const envKey = typeof process !== 'undefined' ? process.env.GENIUS_RANDOM_SEED ?? null : null;
+
+  if (envSeed !== null) {
+    if (!sharedRandom || sharedSeed !== envSeed) {
+      sharedRandom = new GeniusRandom(envSeed);
+      sharedSeed = envSeed;
+    }
+    sharedEnvKey = envKey;
+    return sharedRandom;
+  }
+
+  if (!sharedRandom) {
+    const seed = computeDefaultSeed();
+    sharedRandom = new GeniusRandom(seed);
+    sharedSeed = seed;
+    sharedEnvKey = null;
+    return sharedRandom;
+  }
+
+  if (envKey !== sharedEnvKey) {
+    // Environment variable cleared after being set; restore default seeded generator.
+    const seed = computeDefaultSeed();
+    sharedRandom = new GeniusRandom(seed);
+    sharedSeed = seed;
+    sharedEnvKey = null;
+  }
+
+  return sharedRandom;
+}
+
+export function setGeniusRandomSeed(seed: number | null): void {
+  if (seed === null) {
+    sharedRandom = null;
+    sharedSeed = null;
+    sharedEnvKey = typeof process !== 'undefined' ? process.env.GENIUS_RANDOM_SEED ?? null : null;
+    return;
+  }
+  const normalized = normalizeSeed(seed);
+  sharedRandom = new GeniusRandom(normalized);
+  sharedSeed = normalized;
+  sharedEnvKey = typeof process !== 'undefined' ? process.env.GENIUS_RANDOM_SEED ?? null : null;
+}
+
+function bucketIndexForScore(score: number): number {
+  if (!Number.isFinite(score) || score <= 0) {
+    return 0;
+  }
+  const scaled = Math.floor(score * 10);
+  if (scaled < 0) return 0;
+  if (scaled >= BUCKET_COUNT) return BUCKET_COUNT - 1;
+  return scaled;
 }
 
 function chooseByScore(
@@ -69,7 +201,10 @@ function chooseByScore(
 ): AssociationRecord[] {
   if (associations.length === 0 || count <= 0) return [];
 
-  const ordered = fisherYates(associations).sort((a, b) => {
+  const rng = getRandomGenerator();
+  const randomized = [...associations].sort(() => (rng.coinFlip() ? -1 : 1));
+
+  const ordered = randomized.sort((a, b) => {
     const impA = importanceOf(a);
     const impB = importanceOf(b);
     if (impA === impB) return 0;
@@ -80,32 +215,12 @@ function chooseByScore(
     return ordered;
   }
 
-  let minimumScore = Number.POSITIVE_INFINITY;
-  let maximumScore = Number.NEGATIVE_INFINITY;
-  const resolvedScores: number[] = [];
+  const buckets: AssociationRecord[][] = Array.from({ length: BUCKET_COUNT }, () => []);
 
   for (const assoc of ordered) {
     const score = scoreValue(assoc);
-    resolvedScores.push(score);
-    if (score < minimumScore) minimumScore = score;
-    if (score > maximumScore) maximumScore = score;
-  }
-
-  if (!Number.isFinite(minimumScore) || !Number.isFinite(maximumScore)) {
-    minimumScore = 0;
-    maximumScore = 0;
-  }
-
-  const bucketCount = Math.max(1, Math.trunc(maximumScore - minimumScore + 1));
-  const buckets: AssociationRecord[][] = Array.from({ length: bucketCount }, () => []);
-
-  for (let i = 0; i < ordered.length; i += 1) {
-    const score = resolvedScores[i];
-    const index = Math.trunc(score - minimumScore);
-    const bucket = buckets[index];
-    if (bucket) {
-      bucket.push(ordered[i]);
-    }
+    const bucketIndex = bucketIndexForScore(score);
+    buckets[bucketIndex].push(assoc);
   }
 
   const weights = buckets.map((_, idx) => poissonValue(idx, mValue));
@@ -113,18 +228,34 @@ function chooseByScore(
   const selected: AssociationRecord[] = [];
 
   while (selected.length < desired) {
-    let x = Math.random();
-
+    let x = rng.nextFloat();
+    let chosen: AssociationRecord | null = null;
     for (let idx = 0; idx < buckets.length; idx += 1) {
       const weight = weights[idx];
       if (x < weight) {
         const bucket = buckets[idx];
         if (bucket.length > 0) {
-          selected.push(bucket.shift()!);
-          break;
+          chosen = bucket.shift() ?? null;
         }
+        break;
       }
       x -= weight;
+    }
+    if (chosen) {
+      selected.push(chosen);
+      continue;
+    }
+
+    let hasRemaining = false;
+    for (const bucket of buckets) {
+      if (bucket.length > 0) {
+        hasRemaining = true;
+        break;
+      }
+    }
+
+    if (!hasRemaining) {
+      break;
     }
   }
 
