@@ -337,7 +337,42 @@ function toAssocView(a: AssociationRecord): AssocView {
   };
 }
 
-export async function mark(associationId: string, mark: 'RIGHT' | 'WRONG' | 'SKIP') {
+export type AssociationSnapshot = {
+  score: number | null;
+  dueAt: string | null;
+  firstTime: boolean;
+};
+
+export async function restoreAssociation(associationId: string, snapshot: AssociationSnapshot) {
+  const dueAt = snapshot.dueAt ? new Date(snapshot.dueAt) : null;
+  const data: Prisma.AssociationUpdateInput = {
+    score:
+      snapshot.score === null
+        ? (null as unknown as number)
+        : Number.isFinite(snapshot.score)
+          ? snapshot.score
+          : (null as unknown as number),
+    dueAt,
+    firstTime: Boolean(snapshot.firstTime),
+  };
+  const updated = await prisma.association.update({
+    where: { id: associationId },
+    data,
+    include: { pair: { select: { deckId: true } } },
+  });
+  return updated.pair.deckId;
+}
+
+export async function mark(
+  associationId: string,
+  mark: 'RIGHT' | 'WRONG' | 'SKIP' | 'UNDO',
+  snapshot?: AssociationSnapshot,
+) {
+  if (mark === 'UNDO') {
+    if (!snapshot) return null;
+    return restoreAssociation(associationId, snapshot);
+  }
+
   const association = await prisma.association.findUnique({
     where: { id: associationId },
     include: { pair: true },
