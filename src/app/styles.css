@@ -15,6 +15,12 @@
   --chip-border:#b7bcc5;
   --chip-danger-bg:rgba(255,0,0,0.12);
   --chip-danger-border:#d64545;
+  --quiz-pass-bg:rgba(67,172,114,0.18);
+  --quiz-pass-border:#3fb573;
+  --quiz-pass-text:#135b33;
+  --quiz-fail-bg:rgba(240,91,91,0.16);
+  --quiz-fail-border:#e06767;
+  --quiz-fail-text:#7f1818;
   --shadow:0 4px 18px rgba(0,0,0,0.08);
   --table-stripe:#f7f9fb;
   --table-sticky-shadow:-1px 0 0 rgba(0,0,0,0.05);
@@ -46,6 +52,12 @@ html[data-theme='dark'] {
   --chip-border:#465267;
   --chip-danger-bg:rgba(181,64,64,0.18);
   --chip-danger-border:#f27d7d;
+  --quiz-pass-bg:rgba(67,172,114,0.28);
+  --quiz-pass-border:#46b978;
+  --quiz-pass-text:#d6f8e4;
+  --quiz-fail-bg:rgba(240,91,91,0.24);
+  --quiz-fail-border:#f27d7d;
+  --quiz-fail-text:#ffd7d7;
   --shadow:0 10px 30px rgba(0,0,0,0.5);
   --table-stripe:#222a34;
   --table-sticky-shadow:-1px 0 0 rgba(0,0,0,0.4);
@@ -794,8 +806,8 @@ body[data-study-open='true'] .table-grid{visibility:hidden}
 .btn.primary{background:var(--link);border-color:var(--link);color:#fff}
 .btn.primary:hover{background:color-mix(in srgb,var(--link) 78%,#ffffff 18%);border-color:color-mix(in srgb,var(--link) 70%,#ffffff 15%)}
 .btn.btn--default{box-shadow:0 0 0 2px color-mix(in srgb,var(--link) 60%,transparent);border-color:var(--link)}
-.btn.yes{background:color-mix(in srgb,#3fb573 20%,transparent);border-color:color-mix(in srgb,#3fb573 45%,var(--chrome-border) 55%);color:#135b33}
-.btn.no{background:color-mix(in srgb,#f05b5b 18%,transparent);border-color:color-mix(in srgb,#f05b5b 50%,var(--chrome-border) 50%);color:#7f1818}
+.btn.yes{background:var(--quiz-pass-bg);border-color:color-mix(in srgb,var(--quiz-pass-border) 70%,var(--chrome-border) 30%);color:var(--quiz-pass-text)}
+.btn.no{background:var(--quiz-fail-bg);border-color:color-mix(in srgb,var(--quiz-fail-border) 70%,var(--chrome-border) 30%);color:var(--quiz-fail-text)}
 .btn:focus-visible{outline:2px solid var(--link);outline-offset:2px}
 .revealed{margin-top:.8rem}
 .diff{white-space:pre-wrap;padding:.6rem .7rem;border:1px dashed #cfd6df;border-radius:6px;background:#fbfdff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;margin-bottom:.5rem}
