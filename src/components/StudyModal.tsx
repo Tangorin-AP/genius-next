@@ -1,7 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RawSessionPlan, SessionCard, SessionScheduler } from '@/lib/session';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  RawSessionPlan,
+  SessionCard,
+  SessionScheduler,
+  SessionSnapshot,
+  cloneSessionCard,
+} from '@/lib/session';
 import { computeCorrectness, defaultMatchingMode, MatchingMode, normalizeAnswerDisplay } from '@/lib/matching';
 import { UNSCHEDULED_SAMPLE_COUNT } from '@/lib/constants';
 import { diffWordsWithSpace } from 'diff';
@@ -25,6 +31,19 @@ type DiffToken = {
 type DiffResult = {
   typed: DiffToken[];
   expected: DiffToken[];
+};
+
+type UndoEntry = {
+  associationId: string;
+  decision: 'RIGHT' | 'WRONG' | 'SKIP';
+  card: SessionCard;
+  scheduler: SessionSnapshot;
+  cardState: { score: number; dueAt: Date | null; firstTime: boolean };
+  progress: { seen: number; total: number };
+  input: string;
+  phase: 'review' | 'quiz' | 'check';
+  checkScore: number | null;
+  autoChoice: 'YES' | 'NO' | null;
 };
 
 function computeDiffTokens(expected: string, typed: string): DiffResult {
@@ -70,6 +89,27 @@ type SessionState = {
   scheduler: SessionScheduler | null;
   current: SessionCard | null;
 };
+
+function clampScore(value: number) {
+  if (!Number.isFinite(value)) {
+    return -1;
+  }
+  if (value < 0) return -1;
+  return Math.max(0, Math.min(10, Math.round(value)));
+}
+
+function scoreToPercent(score: number) {
+  const normalized = clampScore(score);
+  if (normalized < 0) return '0%';
+  return `${(normalized / 10) * 100}%`;
+}
+
+function scoreToColor(score: number) {
+  const normalized = clampScore(score);
+  const clamped = normalized < 0 ? 0 : normalized;
+  const hue = (clamped / 10) * 120;
+  return `hsl(${Math.round(hue)}, 70%, 50%)`;
+}
 
 function readParams(): StudyParams {
   try {
@@ -138,6 +178,8 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
+  const [undoing, setUndoing] = useState(false);
   const paramsRef = useRef<StudyParams>(DEFAULT_PARAMS);
   const closeTimeoutRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -157,6 +199,8 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     setError(null);
     setLoading(false);
     setSubmitting(false);
+    setUndoStack([]);
+    setUndoing(false);
     setPhase('quiz');
     setProgress({ seen: 0, total: 0 });
     inputRef.current?.blur();
@@ -259,6 +303,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
         const scheduler = new SessionScheduler(plan, { reviewBias });
         setSession({ scheduler, current: null });
         setProgress(scheduler.progress());
+        setUndoStack([]);
         takeNextCard(scheduler);
       })
       .catch(() => {
@@ -309,6 +354,21 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const scheduler = session.scheduler;
   const current = session.current;
 
+  const hasUndo = undoStack.length > 0;
+  const undoDisabled = submitting || undoing;
+  const renderUndoButton = () => (
+    <button
+      onClick={handleUndo}
+      className="btn btn--ghost"
+      type="button"
+      disabled={undoDisabled}
+      title="Undo last answer"
+      aria-label="Undo last answer"
+    >
+      Undo
+    </button>
+  );
+
   useEffect(() => {
     if (!visible || closing) return;
     if (!current) {
@@ -355,12 +415,40 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     refreshProgress();
   }, [refreshProgress, scheduler, takeNextCard]);
 
+  const pushUndoEntry = useCallback((entry: UndoEntry) => {
+    setUndoStack((stack) => {
+      const nextStack = [...stack, entry];
+      if (nextStack.length > 5) {
+        return nextStack.slice(nextStack.length - 5);
+      }
+      return nextStack;
+    });
+  }, []);
+
   const applyRight = useCallback(async () => {
-    if (!current || !scheduler || submitting) return;
+    if (!current || !scheduler || submitting || undoing) return;
     inputRef.current?.blur();
     setSubmitting(true);
     try {
       const mark = current.firstTime ? 'WRONG' : 'RIGHT';
+      const cardSnapshot = cloneSessionCard(current);
+      const schedulerSnapshot = scheduler.snapshot();
+      const undoEntry: UndoEntry = {
+        associationId: current.id,
+        decision: mark,
+        card: cardSnapshot,
+        scheduler: schedulerSnapshot,
+        cardState: {
+          score: cardSnapshot.score,
+          dueAt: cardSnapshot.dueAt,
+          firstTime: cardSnapshot.firstTime,
+        },
+        progress: { ...progress },
+        input,
+        phase,
+        checkScore,
+        autoChoice,
+      };
       const res = await fetch('/api/mark', {
         method: 'POST',
         body: JSON.stringify({ associationId: current.id, decision: mark }),
@@ -371,6 +459,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
       } else {
         scheduler.associationRight(current);
       }
+      pushUndoEntry(undoEntry);
       broadcastScore(current.pairId, current.score);
       next();
     } catch (err) {
@@ -379,19 +468,38 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     } finally {
       setSubmitting(false);
     }
-  }, [current, next, scheduler, submitting]);
+  }, [autoChoice, checkScore, current, input, next, phase, progress, pushUndoEntry, scheduler, submitting, undoing]);
 
   const applyWrong = useCallback(async () => {
-    if (!current || !scheduler || submitting) return;
+    if (!current || !scheduler || submitting || undoing) return;
     inputRef.current?.blur();
     setSubmitting(true);
     try {
+      const cardSnapshot = cloneSessionCard(current);
+      const schedulerSnapshot = scheduler.snapshot();
+      const undoEntry: UndoEntry = {
+        associationId: current.id,
+        decision: 'WRONG',
+        card: cardSnapshot,
+        scheduler: schedulerSnapshot,
+        cardState: {
+          score: cardSnapshot.score,
+          dueAt: cardSnapshot.dueAt,
+          firstTime: cardSnapshot.firstTime,
+        },
+        progress: { ...progress },
+        input,
+        phase,
+        checkScore,
+        autoChoice,
+      };
       const res = await fetch('/api/mark', {
         method: 'POST',
         body: JSON.stringify({ associationId: current.id, decision: 'WRONG' }),
       });
       if (!res.ok) throw new Error('mark failed');
       scheduler.associationWrong(current);
+      pushUndoEntry(undoEntry);
       broadcastScore(current.pairId, 0);
       next();
     } catch (err) {
@@ -400,19 +508,38 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     } finally {
       setSubmitting(false);
     }
-  }, [current, next, scheduler, submitting]);
+  }, [autoChoice, checkScore, current, input, next, phase, progress, pushUndoEntry, scheduler, submitting, undoing]);
 
   const applySkip = useCallback(async () => {
-    if (!current || !scheduler || submitting) return;
+    if (!current || !scheduler || submitting || undoing) return;
     inputRef.current?.blur();
     setSubmitting(true);
     try {
+      const cardSnapshot = cloneSessionCard(current);
+      const schedulerSnapshot = scheduler.snapshot();
+      const undoEntry: UndoEntry = {
+        associationId: current.id,
+        decision: 'SKIP',
+        card: cardSnapshot,
+        scheduler: schedulerSnapshot,
+        cardState: {
+          score: cardSnapshot.score,
+          dueAt: cardSnapshot.dueAt,
+          firstTime: cardSnapshot.firstTime,
+        },
+        progress: { ...progress },
+        input,
+        phase,
+        checkScore,
+        autoChoice,
+      };
       const res = await fetch('/api/mark', {
         method: 'POST',
         body: JSON.stringify({ associationId: current.id, decision: 'SKIP' }),
       });
       if (!res.ok) throw new Error('mark failed');
       scheduler.associationSkip(current);
+      pushUndoEntry(undoEntry);
       broadcastScore(current.pairId, -1);
       next();
     } catch (err) {
@@ -421,10 +548,10 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     } finally {
       setSubmitting(false);
     }
-  }, [current, next, scheduler, submitting]);
+  }, [autoChoice, checkScore, current, input, next, phase, progress, pushUndoEntry, scheduler, submitting, undoing]);
 
   const doSubmit = useCallback(async () => {
-    if (!current || !scheduler || submitting) return;
+    if (!current || !scheduler || submitting || undoing) return;
     if (current.firstTime) {
       await applyRight();
       return;
@@ -451,7 +578,62 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     } finally {
       setSubmitting(false);
     }
-  }, [applyRight, current, input, playRight, playWrong, scheduler, submitting]);
+  }, [applyRight, current, input, playRight, playWrong, scheduler, submitting, undoing]);
+
+  const handleUndo = useCallback(async () => {
+    if (!scheduler || undoStack.length === 0 || submitting || undoing) return;
+    const entry = undoStack[undoStack.length - 1];
+    setUndoing(true);
+    try {
+      const res = await fetch('/api/mark', {
+        method: 'POST',
+        body: JSON.stringify({
+          associationId: entry.associationId,
+          decision: 'UNDO',
+          snapshot: {
+            score: entry.cardState.score < 0 ? null : entry.cardState.score,
+            dueAt: entry.cardState.dueAt ? entry.cardState.dueAt.toISOString() : null,
+            firstTime: entry.cardState.firstTime,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error('undo failed');
+      scheduler.restore(entry.scheduler);
+      const restoredCard = cloneSessionCard(entry.card);
+      lastCardIdRef.current = restoredCard.id;
+      setSession({ scheduler, current: restoredCard });
+      setProgress(entry.progress);
+      setInput(entry.input);
+      setPhase(entry.phase);
+      setCheckScore(entry.checkScore);
+      setAutoChoice(entry.autoChoice);
+      setActionError(null);
+      setUndoStack((stack) => stack.slice(0, -1));
+      broadcastScore(restoredCard.pairId, entry.cardState.score);
+      setSubmitting(false);
+      setTimeout(() => {
+        if (entry.phase === 'review') {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        } else if (entry.phase === 'quiz') {
+          inputRef.current?.focus();
+        } else if (entry.phase === 'check') {
+          if (entry.autoChoice === 'YES') {
+            yesRef.current?.focus();
+          } else if (entry.autoChoice === 'NO') {
+            noRef.current?.focus();
+          } else {
+            inputRef.current?.focus();
+          }
+        }
+      }, 0);
+    } catch (err) {
+      console.error(err);
+      setActionError('Could not undo the last action. Please try again.');
+    } finally {
+      setUndoing(false);
+    }
+  }, [autoChoice, inputRef, lastCardIdRef, noRef, scheduler, submitting, undoStack, undoing, yesRef]);
 
   useEffect(() => {
     if (!visible || closing) return;
@@ -511,6 +693,16 @@ export default function StudyModal({ deckId }: { deckId: string }) {
   const typedDiffNodes = diffTokens.typed.length > 0 ? renderDiffTokens(diffTokens.typed, 'typed') : null;
   const expectedDiffNodes = diffTokens.expected.length > 0 ? renderDiffTokens(diffTokens.expected, 'expected') : null;
 
+  const scoreValue = current ? clampScore(current.score) : -1;
+  const scoreChipStyle: CSSProperties | undefined = current
+    ? ({
+        '--score-percent': scoreToPercent(current.score),
+        '--score-color': scoreToColor(current.score),
+      } as CSSProperties)
+    : undefined;
+  const scoreLabel = scoreValue < 0 ? '—' : scoreValue;
+  const scoreChipTitle = current?.firstTime ? 'New card' : 'Current score';
+
   if (!visible) return null;
 
   const isIntro = Boolean(current?.firstTime);
@@ -548,6 +740,19 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                 <div className="quiz-meta">
                   <div className="quiz-meta__primary">
                     {metaLabel && <span className="quiz-meta__label">{metaLabel}</span>}
+                    {current && (
+                      <span
+                        className="score-chip quiz-meta__score-chip"
+                        aria-disabled="true"
+                        style={scoreChipStyle}
+                        title={scoreChipTitle ?? undefined}
+                      >
+                        <span className="score-chip__track">
+                          <span className="score-chip__dot" />
+                        </span>
+                        <span className="score-chip__value">{scoreLabel}</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               <div className="quiz-progress">
@@ -609,6 +814,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   <>
                     <div className="quiz-footer__prompt">Remember this item.</div>
                     <div className="quiz-footer__actions">
+                      {hasUndo && renderUndoButton()}
                       <button
                         ref={okRef}
                         onClick={applyRight}
@@ -624,6 +830,7 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   <>
                     <div className="quiz-footer__prompt">Did you get it right?</div>
                     <div className="quiz-footer__actions">
+                      {hasUndo && renderUndoButton()}
                       <button
                         ref={yesRef}
                         onClick={applyRight}
@@ -646,7 +853,13 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                     </div>
                   </>
                 ) : (
-                  <div className="quiz-footer__spacer" />
+                  hasUndo ? (
+                    <div className="quiz-footer__actions quiz-footer__actions--solo">
+                      {renderUndoButton()}
+                    </div>
+                  ) : (
+                    <div className="quiz-footer__spacer" />
+                  )
                 )}
               </div>
             </div>

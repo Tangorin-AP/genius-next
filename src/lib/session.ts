@@ -7,7 +7,13 @@ export type RawSessionPlan = {
   requested: number;
 };
 
-export type SessionCard = (AssocView & { dueAt: Date | null });
+export type SessionCard = AssocView & { dueAt: Date | null };
+
+export type SessionSnapshot = {
+  dueQueue: { card: SessionCard; dueDate: Date | null }[];
+  pool: SessionCard[];
+  seen: number;
+};
 
 type QueueEntry = {
   card: SessionCard;
@@ -25,6 +31,13 @@ function cloneCard(raw: AssocView & { dueAt: string | null }): SessionCard {
   return {
     ...raw,
     dueAt: parseDate(raw.dueAt ?? null),
+  };
+}
+
+export function cloneSessionCard(card: SessionCard): SessionCard {
+  return {
+    ...card,
+    dueAt: card.dueAt ? new Date(card.dueAt.getTime()) : null,
   };
 }
 
@@ -138,6 +151,26 @@ export class SessionScheduler {
     card.score = -1;
     card.firstTime = true;
     card.dueAt = null;
+  }
+
+  snapshot(): SessionSnapshot {
+    return {
+      dueQueue: this.dueQueue.map(({ card, dueDate }) => ({
+        card: cloneSessionCard(card),
+        dueDate: dueDate ? new Date(dueDate.getTime()) : null,
+      })),
+      pool: this.pool.map((card) => cloneSessionCard(card)),
+      seen: this.seen,
+    };
+  }
+
+  restore(snapshot: SessionSnapshot) {
+    this.dueQueue = snapshot.dueQueue.map(({ card, dueDate }) => ({
+      card: cloneSessionCard(card),
+      dueDate: dueDate ? new Date(dueDate.getTime()) : null,
+    }));
+    this.pool = snapshot.pool.map((card) => cloneSessionCard(card));
+    this.seen = snapshot.seen;
   }
 
   private isDueReady(now: Date): boolean {
