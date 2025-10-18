@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "postinstall": "prisma generate",
+    "postinstall": "node ./scripts/postinstall.js",
     "migrate": "prisma migrate dev --name init",
     "seed": "node ./scripts/seed.mjs",
     "test": "vitest run"
