@@ -838,6 +838,9 @@ body[data-study-open='true'] .table-grid{visibility:hidden}
 .quiz-diff__row{display:flex;align-items:flex-start;gap:.9rem;font-weight:600}
 .quiz-diff__label{flex:0 0 auto;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:.78rem}
 .quiz-diff__value{flex:1;font-weight:700;color:var(--ink);white-space:pre-wrap;word-break:break-word;max-height:140px;overflow:auto;padding-right:.2rem}
+.quiz-diff__token{display:inline;border-radius:6px;padding:0 .18rem;margin:0 -.05rem;line-height:1.4}
+.quiz-diff__token--match{background:color-mix(in srgb,#3fb573 18%,transparent);color:#135b33}
+.quiz-diff__token--extra,.quiz-diff__token--missing{background:color-mix(in srgb,#f05b5b 18%,transparent);color:#7f1818}
 .quiz-footer{display:flex;align-items:center;justify-content:space-between;gap:.6rem;border-top:1px solid var(--chrome-border);padding-top:.8rem;margin-top:.4rem;min-height:48px}
 .quiz-footer__prompt{font-weight:700;color:var(--muted);font-size:.92rem}
 .quiz-footer__actions{display:flex;align-items:center;gap:.6rem}
