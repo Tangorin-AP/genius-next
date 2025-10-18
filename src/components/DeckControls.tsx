@@ -26,15 +26,28 @@ export default function DeckControls({ stats }: { stats: {pairs:number}; }){
       const raw = localStorage.getItem('studyParams');
       if (!raw) return;
       const parsed = JSON.parse(raw);
+      let sliderValue: number | null = null;
       if (typeof parsed.slider === 'number') {
-        setSlider(clampSliderValue(parsed.slider));
+        sliderValue = clampSliderValue(parsed.slider);
+        setSlider(sliderValue);
       } else if (typeof parsed.m === 'number') {
-        setSlider(clampSliderValue((parsed.m / 2) * 100));
+        sliderValue = clampSliderValue((parsed.m / 2) * 100);
+        setSlider(sliderValue);
       }
-      if (typeof parsed.minimumScore === 'number') {
-        setMinimumScore(parsed.minimumScore);
+      if (typeof parsed.baseMinimumScore === 'number') {
+        setMinimumScore(parsed.baseMinimumScore);
+      } else if (typeof parsed.minimumScore === 'number') {
+        if (sliderValue !== null && sliderValue >= 100) {
+          setMinimumScore(-1);
+        } else {
+          setMinimumScore(parsed.minimumScore);
+        }
       } else if (typeof parsed.min === 'number') {
-        setMinimumScore(parsed.min);
+        if (sliderValue !== null && sliderValue >= 100) {
+          setMinimumScore(-1);
+        } else {
+          setMinimumScore(parsed.min);
+        }
       }
       if (typeof parsed.mode === 'string') setMode(parsed.mode as MatchingMode);
     } catch {
@@ -73,9 +86,11 @@ export default function DeckControls({ stats }: { stats: {pairs:number}; }){
 
   function handleLearn(){
     const sliderValue = Math.max(0, Math.min(100, Math.round(slider)));
+    const baseMinimumScore = minimumScore;
     const payload = {
       slider: sliderValue,
-      minimumScore: sliderValue === 100 ? Math.max(0, minimumScore) : minimumScore,
+      minimumScore: sliderValue === 100 ? Math.max(0, baseMinimumScore) : baseMinimumScore,
+      baseMinimumScore,
       mode,
       m: 2 * (sliderValue / 100),
     };
