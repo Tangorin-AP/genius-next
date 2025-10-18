@@ -508,6 +508,8 @@ export default function StudyModal({ deckId }: { deckId: string }) {
     () => computeDiffTokens(expectedDiffSource, typedDiffSource),
     [expectedDiffSource, typedDiffSource],
   );
+  const typedDiffNodes = diffTokens.typed.length > 0 ? renderDiffTokens(diffTokens.typed, 'typed') : null;
+  const expectedDiffNodes = diffTokens.expected.length > 0 ? renderDiffTokens(diffTokens.expected, 'expected') : null;
 
   if (!visible) return null;
 
@@ -591,13 +593,13 @@ export default function StudyModal({ deckId }: { deckId: string }) {
                   <div className="quiz-diff__row">
                     <span className="quiz-diff__label">You typed</span>
                     <div className="quiz-diff__value" aria-live="polite">
-                      {typedLabel}
+                      {typedDiffNodes ?? typedLabel}
                     </div>
                   </div>
                   <div className="quiz-diff__row">
                     <span className="quiz-diff__label">Expected</span>
                     <div className="quiz-diff__value" aria-live="polite">
-                      {expectedLabel}
+                      {expectedDiffNodes ?? expectedLabel}
                     </div>
                   </div>
                 </div>
