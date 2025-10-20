@@ -11,10 +11,16 @@ import { renameDeck } from '@/app/actions';
 import { hasDatabaseUrl } from '@/lib/env';
 import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
 import ThemeToggle from '@/components/ThemeToggle';
+import { auth } from '@/auth';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DeckPage({ params }: { params: { deckId: string }}) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect('/login');
+  }
   if (!hasDatabaseUrl()) {
     return (
       <main className="page page--deck">
@@ -32,7 +38,10 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
     );
   }
 
-  const deck = await prisma.deck.findUnique({ where: { id: params.deckId }, include: { pairs: { include: { associations: true } } } });
+  const deck = await prisma.deck.findFirst({
+    where: { id: params.deckId, userId: session.user.id },
+    include: { pairs: { include: { associations: true } } },
+  });
   if (!deck) return <div>Deck not found</div>;
 
   const rows = deck.pairs.map((p) => {
