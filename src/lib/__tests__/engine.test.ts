@@ -85,7 +85,7 @@ function extractPoolIds(plan: Awaited<ReturnType<typeof chooseAssociations>>): s
 
 describe('chooseAssociations weighting parity', () => {
   it('matches macOS Poisson weighting for balanced review vs learn (m=1)', async () => {
-    const plan = await chooseAssociations({ deckId: 'deck-1', count: 5, mValue: 1, minimumScore: -1 });
+    const plan = await chooseAssociations({ deckId: 'deck-1', userId: 'user-1', count: 5, mValue: 1, minimumScore: -1 });
     expect(extractPoolIds(plan)).toEqual([
       'assoc-2',
       'assoc-1',
@@ -98,7 +98,7 @@ describe('chooseAssociations weighting parity', () => {
   it('leans into new cards when probability center shifts toward learning (m=2)', async () => {
     setGeniusRandomSeed(4242);
     findManyMock.mockImplementation(async () => buildSampleDeck());
-    const plan = await chooseAssociations({ deckId: 'deck-1', count: 5, mValue: 2, minimumScore: -1 });
+    const plan = await chooseAssociations({ deckId: 'deck-1', userId: 'user-1', count: 5, mValue: 2, minimumScore: -1 });
     expect(extractPoolIds(plan)).toEqual([
       'assoc-1',
       'assoc-0',
@@ -111,7 +111,7 @@ describe('chooseAssociations weighting parity', () => {
   it('respects minimumScore before weighting, emphasizing higher score buckets', async () => {
     setGeniusRandomSeed(2024);
     findManyMock.mockImplementation(async () => buildSampleDeck());
-    const plan = await chooseAssociations({ deckId: 'deck-1', count: 4, mValue: 0.6, minimumScore: 0.3 });
+    const plan = await chooseAssociations({ deckId: 'deck-1', userId: 'user-1', count: 4, mValue: 0.6, minimumScore: 0.3 });
     expect(extractPoolIds(plan)).toEqual([
       'assoc-4',
       'assoc-5',

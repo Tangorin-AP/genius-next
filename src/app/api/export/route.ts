@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hasDatabaseUrl } from '@/lib/env';
+import { auth } from '@/auth';
 
 function escapeCSV(value: string) {
   const needsQuotes = /[",\n]/.test(value);
@@ -16,16 +17,23 @@ export async function GET(req: Request){
       { status: 503 },
     );
   }
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ ok:false, error: 'Unauthorized' }, { status: 401 });
+  }
   const { searchParams } = new URL(req.url);
   const deckId = searchParams.get('deckId');
   if (!deckId) return NextResponse.json({ ok:false, error: 'deckId required' }, { status: 400 });
 
-  const deck = await prisma.deck.findUnique({ where: { id: deckId }, select: { name: true } });
+  const deck = await prisma.deck.findFirst({ where: { id: deckId, userId: session.user.id }, select: { name: true } });
   if (!deck) {
     return NextResponse.json({ ok:false, error: 'Deck not found' }, { status: 404 });
   }
 
-  const pairs = await prisma.pair.findMany({ where: { deckId }, orderBy: { createdAt: 'asc' } });
+  const pairs = await prisma.pair.findMany({
+    where: { deckId, deck: { userId: session.user.id } },
+    orderBy: { createdAt: 'asc' },
+  });
   const header = 'Question,Answer';
   const lines = pairs.map((pair) => `${escapeCSV(pair.question)},${escapeCSV(pair.answer)}`);
   const csv = [header, ...lines].join('\n');

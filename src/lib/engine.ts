@@ -18,6 +18,7 @@ export function nextDueFromScore(score: number): Date {
 
 export interface ChooseOptions {
   deckId: string;
+  userId: string;
   count: number;
   minimumScore?: number;
   mValue?: number;
@@ -262,10 +263,10 @@ function chooseByScore(
   return selected;
 }
 
-export async function chooseAssociations({ deckId, count, minimumScore = -1, mValue = 1 }: ChooseOptions): Promise<SessionPlan> {
+export async function chooseAssociations({ deckId, userId, count, minimumScore = -1, mValue = 1 }: ChooseOptions): Promise<SessionPlan> {
   const associations = await prisma.association.findMany({
     where: {
-      pair: { deckId },
+      pair: { deckId, deck: { userId } },
       direction: 'AB',
     },
     include: { pair: true },
@@ -337,9 +338,9 @@ function toAssocView(a: AssociationRecord): AssocView {
   };
 }
 
-export async function mark(associationId: string, mark: 'RIGHT' | 'WRONG' | 'SKIP') {
-  const association = await prisma.association.findUnique({
-    where: { id: associationId },
+export async function mark(userId: string, associationId: string, decision: 'RIGHT' | 'WRONG' | 'SKIP') {
+  const association = await prisma.association.findFirst({
+    where: { id: associationId, pair: { deck: { userId } } },
     include: { pair: true },
   });
   if (!association) return null;
@@ -348,7 +349,7 @@ export async function mark(associationId: string, mark: 'RIGHT' | 'WRONG' | 'SKI
 
   const currentScore = scoreValue(association);
 
-  if (mark === 'SKIP') {
+  if (decision === 'SKIP') {
     await prisma.association.update({
       where: { id: association.id },
       data: {
@@ -360,7 +361,7 @@ export async function mark(associationId: string, mark: 'RIGHT' | 'WRONG' | 'SKI
     return deckId;
   }
 
-  if (mark === 'RIGHT') {
+  if (decision === 'RIGHT') {
     const newScore = currentScore + 1;
     const storedScore = newScore < 0 ? 0 : newScore;
     await prisma.association.update({

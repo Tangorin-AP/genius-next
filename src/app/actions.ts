@@ -5,41 +5,55 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { assertDatabaseUrl } from '@/lib/env';
+import { auth } from '@/auth';
 
 function ensureDatabase() {
   assertDatabaseUrl();
 }
 
+async function requireUserId(): Promise<string> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect('/login');
+  }
+  return session.user.id;
+}
+
 export async function createDeck(formData: FormData) {
   ensureDatabase();
+  const userId = await requireUserId();
   const rawName = String(formData.get('name') ?? '').trim();
   const name = rawName === '' ? 'Untitled Pack' : rawName;
-  const deck = await prisma.deck.create({ data: { name } });
+  const deck = await prisma.deck.create({ data: { name, userId } });
   revalidatePath('/');
   redirect(`/deck/${deck.id}`);
 }
 
 export async function renameDeck(formData: FormData) {
   ensureDatabase();
+  const userId = await requireUserId();
   const deckId = String(formData.get('deckId') ?? '');
   if (!deckId) return;
   const rawName = String(formData.get('name') ?? '').trim();
   const name = rawName === '' ? 'Untitled Pack' : rawName;
 
-  await prisma.deck.update({ where: { id: deckId }, data: { name } });
+  const result = await prisma.deck.updateMany({ where: { id: deckId, userId }, data: { name } });
+  if (result.count === 0) return;
   revalidatePath('/');
   revalidatePath(`/deck/${deckId}`);
 }
 
 export async function deleteDeck(formData: FormData) {
   ensureDatabase();
+  const userId = await requireUserId();
   const deckId = String(formData.get('deckId') ?? '');
   if (!deckId) return;
 
   const redirectToRaw = formData.get('redirectTo');
   const redirectTo = typeof redirectToRaw === 'string' ? redirectToRaw : null;
 
-  await prisma.deck.delete({ where: { id: deckId } });
+  const result = await prisma.deck.deleteMany({ where: { id: deckId, userId } });
+  if (result.count === 0) return;
 
   revalidatePath('/');
   revalidatePath(`/deck/${deckId}`);
@@ -106,6 +120,9 @@ function parseCSV(text: string) {
 
 export async function importCSV(deckId: string, csvText: string) {
   ensureDatabase();
+  const userId = await requireUserId();
+  const deck = await prisma.deck.findFirst({ where: { id: deckId, userId }, select: { id: true } });
+  if (!deck) return;
   const rows = parseCSV(csvText);
   if (rows.length === 0) return;
 
@@ -158,6 +175,7 @@ type TextReadable = { text: () => Promise<string> };
 
 export async function importCSVFromForm(deckId: string, formData: FormData) {
   ensureDatabase();
+  await requireUserId();
   const file = formData.get('csv');
   if (!file || typeof (file as Partial<TextReadable>).text !== 'function') return;
   const text = await (file as TextReadable).text();
@@ -166,6 +184,7 @@ export async function importCSVFromForm(deckId: string, formData: FormData) {
 
 export async function saveRow(formData: FormData) {
   ensureDatabase();
+  const userId = await requireUserId();
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
   const associationId = String(formData.get('associationId') ?? '');
@@ -177,17 +196,64 @@ export async function saveRow(formData: FormData) {
       ? null
       : parseInt(String(scoreStr), 10);
 
-  if (pairId) {
-    await prisma.pair.update({ where: { id: pairId }, data: { question, answer } });
+  if (!deckId) return;
+
+  const ownsDeck = await prisma.deck.findFirst({ where: { id: deckId, userId }, select: { id: true } });
+  if (!ownsDeck) return;
+
+  const boundedScore =
+    score === null || Number.isNaN(score) ? null : Math.max(-1, Math.min(10, score));
+  const numericScore = boundedScore === null || boundedScore < 0 ? null : boundedScore;
+
+  if (!pairId) {
+    if (question.trim() === '' && answer.trim() === '') return;
+    const created = await prisma.pair.create({
+      data: { deckId, question, answer },
+    });
+    const hasScore = numericScore !== null;
+    const dueAt = hasScore ? new Date(Date.now() + Math.pow(5, Math.max(0, numericScore)) * 1000) : null;
+    await prisma.association.createMany({
+      data: [
+        {
+          pairId: created.id,
+          direction: 'AB',
+          ...(hasScore
+            ? { score: numericScore!, dueAt: dueAt!, firstTime: false }
+            : {}),
+        },
+        {
+          pairId: created.id,
+          direction: 'BA',
+          ...(hasScore
+            ? { score: numericScore!, dueAt: dueAt!, firstTime: false }
+            : {}),
+        },
+      ],
+    });
+    revalidatePath(`/deck/${deckId}`);
+    return;
   }
-  if (associationId && score !== null && !Number.isNaN(score)) {
-    const s = Math.max(0, Math.min(10, score));
-    await prisma.association.update({
-      where: { id: associationId },
+
+  if (pairId) {
+    await prisma.pair.updateMany({ where: { id: pairId, deck: { userId } }, data: { question, answer } });
+  }
+  if (associationId && numericScore !== null) {
+    const s = numericScore;
+    await prisma.association.updateMany({
+      where: { id: associationId, pair: { deck: { userId } } },
       data: {
         score: s,
         dueAt: new Date(Date.now() + Math.pow(5, Math.max(0, s)) * 1000),
         firstTime: s === 0 ? false : undefined,
+      },
+    });
+  } else if (associationId && boundedScore !== null && boundedScore < 0) {
+    await prisma.association.updateMany({
+      where: { id: associationId, pair: { deck: { userId } } },
+      data: {
+        score: null as unknown as number,
+        dueAt: null,
+        firstTime: true,
       },
     });
   }
@@ -196,11 +262,15 @@ export async function saveRow(formData: FormData) {
 
 export async function deletePair(formData: FormData) {
   ensureDatabase();
+  const userId = await requireUserId();
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
-  if (pairId) {
-    await prisma.association.deleteMany({ where: { pairId } });
-    await prisma.pair.delete({ where: { id: pairId } });
-  }
-  if (deckId) revalidatePath(`/deck/${deckId}`);
+  if (!deckId || !pairId) return;
+
+  const ownsDeck = await prisma.deck.findFirst({ where: { id: deckId, userId }, select: { id: true } });
+  if (!ownsDeck) return;
+
+  await prisma.association.deleteMany({ where: { pairId, pair: { deck: { userId } } } });
+  await prisma.pair.deleteMany({ where: { id: pairId, deck: { userId } } });
+  revalidatePath(`/deck/${deckId}`);
 }
