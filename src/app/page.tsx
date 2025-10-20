@@ -5,10 +5,16 @@ import ThemeToggle from '@/components/ThemeToggle';
 import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
 import { hasDatabaseUrl } from '@/lib/env';
 import DeckCardManage from '@/components/DeckCardManage';
+import { auth } from '@/auth';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect('/login');
+  }
   if (!hasDatabaseUrl()) {
     return (
       <main className="page">
@@ -27,6 +33,7 @@ export default async function Home() {
   }
 
   const decks = await prisma.deck.findMany({
+    where: { userId: session.user.id },
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { pairs: true } } },
   });

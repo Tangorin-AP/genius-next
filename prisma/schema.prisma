@@ -1,79 +1,117 @@
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 model Deck {
-  id         String   @id @default(cuid())
-  name       String
-  notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  pairs      Pair[]
-  sessions   StudySession[]
+  id        String         @id @default(cuid())
+  name      String
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pairs     Pair[]
+  sessions  StudySession[]
 }
 
 model Pair {
-  id        String @id @default(cuid())
-  deckId    String
-  deck      Deck    @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  question  String
-  answer    String
-  importance Int    @default(0)
-  group     String? // carries through from Genius "group"
-  type      String? // carries through from Genius "type"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String        @id @default(cuid())
+  deckId       String
+  deck         Deck          @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  question     String
+  answer       String
+  importance   Int           @default(0)
+  group        String? // carries through from Genius "group"
+  type         String? // carries through from Genius "type"
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   // Two directional associations
   associations Association[]
 }
 
-enum Direction {
-  AB
-  BA
-}
-
 model Association {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   pairId    String
-  pair      Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
-  direction Direction
+  pair      Pair      @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  direction String
   score     Int?
   dueAt     DateTime?
-  firstTime Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  firstTime Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([pairId, direction])
   @@index([dueAt])
 }
 
 model StudySession {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   deckId    String
-  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  startedAt DateTime @default(now())
+  deck      Deck         @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  startedAt DateTime     @default(now())
   endedAt   DateTime?
   events    StudyEvent[]
 }
 
-enum Mark {
-  RIGHT
-  WRONG
-  SKIP
+model StudyEvent {
+  id            String       @id @default(cuid())
+  sessionId     String
+  session       StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  associationId String?
+  kind          String // "present" | "reveal" | "submit" | "mark"
+  detail        String? // JSON detail
+  at            DateTime     @default(now())
 }
 
-model StudyEvent {
-  id         String   @id @default(cuid())
-  sessionId  String
-  session    StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  associationId String?
-  kind       String // "present" | "reveal" | "submit" | "mark"
-  detail     String? // JSON detail
-  at         DateTime @default(now())
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  accounts      Account[]
+  sessions      Session[]
+  decks         Deck[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+  oauth_token_secret String?
+  oauth_token        String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
 }

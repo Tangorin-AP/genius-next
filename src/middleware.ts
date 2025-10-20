@@ -1,0 +1,46 @@
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+
+const AUTH_ROUTES = ['/login', '/register'];
+const PUBLIC_ROUTES = new Set([...AUTH_ROUTES, '/api/health']);
+const STATIC_ASSET_PATTERN = /\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|woff2?)$/i;
+
+function hasSessionCookie(request: NextRequest): boolean {
+  const secure = request.cookies.get('__Secure-next-auth.session-token');
+  const standard = request.cookies.get('next-auth.session-token');
+  return Boolean(secure?.value ?? standard?.value);
+}
+
+export function middleware(req: NextRequest) {
+  const { pathname, search } = req.nextUrl;
+
+  if (pathname.startsWith('/_next/') || pathname.startsWith('/api/auth') || pathname.startsWith('/favicon.ico')) {
+    return NextResponse.next();
+  }
+  if (STATIC_ASSET_PATTERN.test(pathname)) {
+    return NextResponse.next();
+  }
+
+  const isPublic = PUBLIC_ROUTES.has(pathname);
+  const isAuthRoute = AUTH_ROUTES.includes(pathname);
+  const isAuthenticated = hasSessionCookie(req);
+
+  if (!isAuthenticated && !isPublic) {
+    const loginUrl = new URL('/login', req.nextUrl.origin);
+    const callback = pathname + (search ?? '');
+    if (callback !== '/login') {
+      loginUrl.searchParams.set('callbackUrl', callback);
+    }
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (isAuthenticated && isAuthRoute) {
+    return NextResponse.redirect(new URL('/', req.nextUrl.origin));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)'],
+};
