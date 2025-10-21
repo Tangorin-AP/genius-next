@@ -48,7 +48,7 @@ Now open http://localhost:3000
 2. In Vercel → Project → **Environment Variables**:
    - `DATABASE_PROVIDER=postgresql`
    - `DATABASE_URL=<your-postgres-connection-string>`
-   - During install the build will run `scripts/sync-prisma-provider.mjs`, which rewrites `prisma/schema.prisma` so Prisma uses the matching datasource provider. When `DATABASE_PROVIDER` is not set it falls back to `DATABASE_URL` (e.g. a Postgres connection string automatically selects `postgresql`) and otherwise defaults to `sqlite`.
+   - During install the build will run `scripts/sync-prisma-provider.mjs`, which rewrites `prisma/schema.prisma` so Prisma uses the matching datasource provider. (Defaults to `sqlite` when `DATABASE_PROVIDER` is not set.)
 3. Add a build hook or first deploy; then run migrations (from your local machine):
    ```bash
    # push schema to remote db
