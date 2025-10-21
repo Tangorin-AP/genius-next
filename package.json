@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "postinstall": "node ./scripts/sync-prisma-provider.mjs && prisma generate",
+    "vercel-build": "node ./scripts/vercel-build.mjs",
     "migrate": "prisma migrate dev --name init",
     "seed": "node ./scripts/seed.mjs",
     "test": "vitest run"

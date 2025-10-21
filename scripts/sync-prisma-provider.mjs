@@ -6,18 +6,44 @@ const SCHEMA_PATH = path.join(PROJECT_ROOT, 'prisma', 'schema.prisma');
 const DEFAULT_PROVIDER = 'sqlite';
 const ALLOWED_PROVIDERS = new Set(['sqlite', 'postgresql']);
 
+function inferProviderFromUrl() {
+  const url = process.env.DATABASE_URL;
+  if (!url) return undefined;
+
+  const trimmed = url.trim().toLowerCase();
+  if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) {
+    return 'postgresql';
+  }
+
+  if (trimmed.startsWith('file:')) {
+    return 'sqlite';
+  }
+
+  return undefined;
+}
+
 function resolveProvider() {
   const value = process.env.DATABASE_PROVIDER;
-  if (!value) return DEFAULT_PROVIDER;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === '') return DEFAULT_PROVIDER;
-  if (!ALLOWED_PROVIDERS.has(normalized)) {
-    const allowedList = Array.from(ALLOWED_PROVIDERS).join(', ');
-    throw new Error(
-      `Unsupported DATABASE_PROVIDER "${value}". Expected one of: ${allowedList}.`
-    );
+  if (value && value.trim() !== '') {
+    const normalized = value.trim().toLowerCase();
+    if (!ALLOWED_PROVIDERS.has(normalized)) {
+      const allowedList = Array.from(ALLOWED_PROVIDERS).join(', ');
+      throw new Error(
+        `Unsupported DATABASE_PROVIDER "${value}". Expected one of: ${allowedList}.`
+      );
+    }
+    return normalized;
   }
-  return normalized;
+
+  const inferred = inferProviderFromUrl();
+  if (inferred) {
+    console.log(
+      `DATABASE_PROVIDER not set. Inferred provider "${inferred}" from DATABASE_URL.`
+    );
+    return inferred;
+  }
+
+  return DEFAULT_PROVIDER;
 }
 
 async function syncProvider() {
