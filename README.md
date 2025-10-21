@@ -44,12 +44,14 @@ Now open http://localhost:3000
 
 ## Deploy (Vercel + Neon/Postgres)
 
-1. **Create a Neon or Supabase Postgres** database. Copy the connection string (e.g. `postgresql://...`).  
-2. In Vercel → Project → **Environment Variables** add `DATABASE_URL=<your-postgres-connection-string>`.
+1. **Create a Neon or Supabase Postgres** database. Copy the connection string (e.g. `postgresql://...`).
+2. In Vercel → Project → **Environment Variables**:
+   - `DATABASE_URL=<your-postgres-connection-string>`
+   - Optional but recommended: `DATABASE_PROVIDER=postgresql`
+   - During install the build will run `scripts/sync-prisma-provider.mjs`, which rewrites `prisma/schema.prisma` so Prisma uses the matching datasource provider. If `DATABASE_PROVIDER` is not set, the script will infer the correct provider from `DATABASE_URL` (e.g. Postgres URLs automatically flip the schema to `postgresql`).
 3. Add a build hook or first deploy; then run migrations (from your local machine):
    ```bash
-   # push schema to remote db
-   npx prisma migrate deploy
+   npx prisma migrate deploy --schema=./prisma/schema.prisma
    ```
 
 ## Where the “Genius behavior” lives

@@ -1,6 +1,6 @@
 node_modules/
 .next/
-.env
-.env.*
-!prisma/.env.example
+/.env
+/.env.*
+dev.db
 *.log

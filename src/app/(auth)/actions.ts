@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { AuthError } from 'next-auth';
 
 import { signIn } from '@/auth';
 import { prisma } from '@/lib/prisma';
@@ -32,6 +31,15 @@ type ActionResult = {
   error?: string;
 };
 
+function isCredentialsSigninError(error: unknown): error is { type: 'CredentialsSignin' } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'type' in error &&
+    (error as { type?: unknown }).type === 'CredentialsSignin'
+  );
+}
+
 function clientKey(prefix: string): string {
   const forwarded = headers().get('x-forwarded-for');
   const remote = forwarded ? forwarded.split(',')[0]?.trim() : null;
@@ -45,7 +53,10 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
   return value;
 }
 
-export async function registerAction(formData: FormData): Promise<ActionResult> {
+export async function registerAction(
+  _prevState: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
   assertDatabaseUrl();
   const key = clientKey('register');
   if (!consumeRateLimit(key, 5, 60_000)) {
@@ -78,7 +89,7 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
   try {
     await signIn('credentials', { email, password, redirectTo: callbackUrl });
   } catch (error) {
-    if (error instanceof AuthError && error.type === 'CredentialsSignin') {
+    if (isCredentialsSigninError(error)) {
       return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
     }
     throw error;
@@ -87,7 +98,10 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
   return {};
 }
 
-export async function loginAction(formData: FormData): Promise<ActionResult> {
+export async function loginAction(
+  _prevState: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
   assertDatabaseUrl();
   const key = clientKey('login');
   if (!consumeRateLimit(key, 10, 60_000)) {
@@ -117,7 +131,7 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       return { error: 'Invalid email or password.' };
     }
   } catch (error) {
-    if (error instanceof AuthError && error.type === 'CredentialsSignin') {
+    if (isCredentialsSigninError(error)) {
       return { error: 'Invalid email or password.' };
     }
     throw error;
