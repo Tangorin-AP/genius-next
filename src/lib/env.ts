@@ -1,18 +1,24 @@
-export function databaseUrl(): string | null {
+const FALLBACK_DATABASE_URL = 'file:./dev.db';
+
+function readDatabaseUrlFromEnv(): string | null {
   const value = process.env.DATABASE_URL;
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
 }
 
+export function databaseUrl(): string {
+  return readDatabaseUrlFromEnv() ?? FALLBACK_DATABASE_URL;
+}
+
 export function hasDatabaseUrl(): boolean {
-  return databaseUrl() !== null;
+  return readDatabaseUrlFromEnv() !== null;
 }
 
 export function assertDatabaseUrl(): string {
   const url = databaseUrl();
   if (!url) {
-    throw new Error('DATABASE_URL environment variable is not set.');
+    throw new Error('A database URL could not be resolved.');
   }
   return url;
 }
