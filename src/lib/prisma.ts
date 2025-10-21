@@ -22,8 +22,12 @@ export const prisma =
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
-const schemaReady = ensurePrismaSchema(prisma);
+const prismaReadyPromise =
+  globalForPrisma.prismaReady || ensurePrismaSchema(prisma);
 
-await schemaReady;
+if (process.env.NODE_ENV !== 'production') {
+  (globalForPrisma as any).prisma = prisma;
+  (globalForPrisma as any).prismaReady = prismaReadyPromise;
+}
 
-if (process.env.NODE_ENV !== 'production') (globalForPrisma as any).prisma = prisma;
+export const prismaReady = prismaReadyPromise;
