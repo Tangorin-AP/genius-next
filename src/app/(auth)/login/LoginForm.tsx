@@ -4,9 +4,9 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useFormState, useFormStatus } from 'react-dom';
 
-import { loginAction, type AuthActionResult } from '../actions';
+import { loginAction } from '../actions';
 
-const initialState: AuthActionResult = {};
+const initialState = { error: undefined as string | undefined };
 
 function SubmitButton({ children }: { children: ReactNode }) {
   const { pending } = useFormStatus();

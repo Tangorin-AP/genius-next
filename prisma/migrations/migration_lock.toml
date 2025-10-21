@@ -1,2 +1,2 @@
 # This file ensures Prisma Migrate uses the same provider on every migrate.
-provider = "sqlite"
+provider = "postgresql"

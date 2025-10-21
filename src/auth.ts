@@ -14,7 +14,6 @@ const credentialsSchema = z.object({
 export const { auth, handlers, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'database' },
-  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? 'development-secret',
   pages: {
     signIn: '/login',
   },
@@ -43,14 +42,14 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async session({ session, user }) {
-      if (user) {
-        const { id, name, email, image } = user;
+      if (session.user) {
+        session.user.id = user?.id ?? session.user.id;
+      } else if (user) {
         session.user = {
-          ...(session.user ?? {}),
-          id,
-          name: name ?? undefined,
-          email: email ?? undefined,
-          image: image ?? undefined,
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
         };
       }
       return session;

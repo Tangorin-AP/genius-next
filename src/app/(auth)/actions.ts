@@ -28,7 +28,7 @@ const loginSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
 });
 
-export type AuthActionResult = {
+type ActionResult = {
   error?: string;
 };
 
@@ -45,10 +45,7 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
   return value;
 }
 
-export async function registerAction(
-  _prevState: AuthActionResult,
-  formData: FormData,
-): Promise<AuthActionResult> {
+export async function registerAction(formData: FormData): Promise<ActionResult> {
   assertDatabaseUrl();
   const key = clientKey('register');
   if (!consumeRateLimit(key, 5, 60_000)) {
@@ -90,10 +87,7 @@ export async function registerAction(
   return {};
 }
 
-export async function loginAction(
-  _prevState: AuthActionResult,
-  formData: FormData,
-): Promise<AuthActionResult> {
+export async function loginAction(formData: FormData): Promise<ActionResult> {
   assertDatabaseUrl();
   const key = clientKey('login');
   if (!consumeRateLimit(key, 10, 60_000)) {
@@ -114,11 +108,14 @@ export async function loginAction(
   const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
 
   try {
-    await signIn('credentials', {
+    const result = await signIn('credentials', {
       email,
       password,
       redirectTo: callbackUrl,
     });
+    if (result && 'error' in result && result.error) {
+      return { error: 'Invalid email or password.' };
+    }
   } catch (error) {
     if (error instanceof AuthError && error.type === 'CredentialsSignin') {
       return { error: 'Invalid email or password.' };
