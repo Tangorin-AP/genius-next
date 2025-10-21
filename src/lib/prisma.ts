@@ -1,13 +1,20 @@
 
 import { PrismaClient } from '@prisma/client';
 
+import { ensurePrismaSchema } from './prisma-ensure';
+
 const DEFAULT_DATABASE_URL = 'file:./dev.db';
 
 if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') {
   process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
 }
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+type PrismaGlobal = {
+  prisma?: PrismaClient;
+  prismaReady?: Promise<void>;
+};
+
+const globalForPrisma = global as unknown as PrismaGlobal;
 
 export const prisma =
   globalForPrisma.prisma ||
@@ -15,4 +22,15 @@ export const prisma =
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
-if (process.env.NODE_ENV !== 'production') (globalForPrisma as any).prisma = prisma;
+const schemaReady = globalForPrisma.prismaReady || ensurePrismaSchema(prisma);
+
+if (!globalForPrisma.prismaReady) {
+  globalForPrisma.prismaReady = schemaReady;
+}
+
+export const prismaReady = schemaReady;
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+  globalForPrisma.prismaReady = schemaReady;
+}

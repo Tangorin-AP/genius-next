@@ -7,10 +7,11 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { importCSV as baseImportCSV, importCSVFromForm as baseImportCSVFromForm, saveRow as baseSaveRow, deletePair as baseDeletePair } from '@/app/actions';
 import { assertDatabaseUrl } from '@/lib/env';
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 
-function ensureDatabase() {
+async function ensureDatabase() {
   assertDatabaseUrl();
+  await prismaReady;
 }
 
 async function requireUserId(): Promise<string> {
@@ -22,7 +23,7 @@ async function requireUserId(): Promise<string> {
 }
 
 export async function addPair(deckId: string) {
-  ensureDatabase();
+  await ensureDatabase();
   const userId = await requireUserId();
   if (!deckId) return;
 

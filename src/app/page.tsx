@@ -1,5 +1,5 @@
 
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 import { createDeck } from '@/app/actions';
 import ThemeToggle from '@/components/ThemeToggle';
 import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
@@ -31,6 +31,8 @@ export default async function Home() {
       </main>
     );
   }
+
+  await prismaReady;
 
   const decks = await prisma.deck.findMany({
     where: { userId: session.user.id },

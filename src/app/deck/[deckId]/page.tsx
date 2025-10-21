@@ -1,5 +1,5 @@
 
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 import StudyModal from '@/components/StudyModal';
 import DeckControls from '@/components/DeckControls';
 import DeckTable from '@/components/DeckTable';
@@ -37,6 +37,8 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
       </main>
     );
   }
+
+  await prismaReady;
 
   const deck = await prisma.deck.findFirst({
     where: { id: params.deckId, userId: session.user.id },

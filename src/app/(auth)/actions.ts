@@ -5,10 +5,8 @@ import { headers } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
-import { AuthError } from 'next-auth';
-
 import { signIn } from '@/auth';
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 import { assertDatabaseUrl } from '@/lib/env';
 import { consumeRateLimit, remainingMs } from '@/lib/rateLimit';
 
@@ -33,8 +31,14 @@ type ActionResult = {
   error?: string;
 };
 
-function isCredentialsSigninError(error: unknown): error is AuthError & { type: 'CredentialsSignin' } {
-  return error instanceof AuthError && error.type === 'CredentialsSignin';
+type AuthLikeError = Error & { type?: string };
+
+function isCredentialsSigninError(error: unknown): error is AuthLikeError & { type: 'CredentialsSignin' } {
+  return (
+    error instanceof Error &&
+    typeof (error as AuthLikeError).type === 'string' &&
+    (error as AuthLikeError).type === 'CredentialsSignin'
+  );
 }
 
 function clientKey(prefix: string): string {
@@ -73,6 +77,8 @@ export async function registerAction(
   }
 
   const { name, email, password } = parsed.data;
+
+  await prismaReady;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {

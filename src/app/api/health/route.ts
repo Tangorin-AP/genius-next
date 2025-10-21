@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 import { hasDatabaseUrl } from '@/lib/env';
 
 export async function GET() {
@@ -12,6 +12,7 @@ export async function GET() {
     );
   }
   try {
+    await prismaReady;
     // lightweight DB ping
     await prisma.$queryRaw`SELECT 1`;
     return NextResponse.json({ ok: true, hasDatabaseUrl: hasUrl, db: 'ok' });
