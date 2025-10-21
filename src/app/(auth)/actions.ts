@@ -5,6 +5,8 @@ import { headers } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
+import { AuthError } from 'next-auth';
+
 import { signIn } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { assertDatabaseUrl } from '@/lib/env';
@@ -31,13 +33,8 @@ type ActionResult = {
   error?: string;
 };
 
-function isCredentialsSigninError(error: unknown): error is { type: 'CredentialsSignin' } {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'type' in error &&
-    (error as { type?: unknown }).type === 'CredentialsSignin'
-  );
+function isCredentialsSigninError(error: unknown): error is AuthError & { type: 'CredentialsSignin' } {
+  return error instanceof AuthError && error.type === 'CredentialsSignin';
 }
 
 function clientKey(prefix: string): string {
@@ -122,14 +119,11 @@ export async function loginAction(
   const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
 
   try {
-    const result = await signIn('credentials', {
+    await signIn('credentials', {
       email,
       password,
       redirectTo: callbackUrl,
     });
-    if (result && 'error' in result && result.error) {
-      return { error: 'Invalid email or password.' };
-    }
   } catch (error) {
     if (isCredentialsSigninError(error)) {
       return { error: 'Invalid email or password.' };

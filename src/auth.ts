@@ -58,12 +58,22 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         if (tokenId) {
           session.user.id = tokenId;
         }
+        if (typeof token.name === 'string') {
+          session.user.name = token.name;
+        }
+        if (typeof token.email === 'string') {
+          session.user.email = token.email;
+        }
+        if (token.picture) {
+          session.user.image = String(token.picture);
+        }
       } else if (tokenId) {
         session.user = {
           id: tokenId,
-          name: token.name ?? null,
-          email: token.email ?? null,
-          image: token.picture ? String(token.picture) : null,
+          name: typeof token.name === 'string' ? token.name : undefined,
+          email: typeof token.email === 'string' ? token.email : '',
+          image: token.picture ? String(token.picture) : undefined,
+          emailVerified: null,
         };
       }
 
