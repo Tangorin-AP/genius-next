@@ -18,7 +18,7 @@ It’s implemented without copying Genius’ Objective‑C (GPL). If you decide 
 - Next.js 14 (App Router, Server Actions)
 - TypeScript
 - Prisma
-- SQLite (dev, default) / **Postgres** (prod via `DATABASE_URL`)
+- PostgreSQL (Neon/Supabase or local)
 - Minimal CSS (Aqua‑like)
 
 ## Quick start (local)
@@ -27,10 +27,8 @@ It’s implemented without copying Genius’ Objective‑C (GPL). If you decide 
 # 1) Install deps
 npm i
 
-# 2) Choose DB (default: SQLite)
-# For SQLite:
-echo 'DATABASE_PROVIDER="sqlite"
-DATABASE_URL="file:./dev.db"' > .env
+# 2) Configure your Postgres connection
+cp prisma/.env.example prisma/.env # then edit with your credentials
 
 # 3) Migrate + Seed
 npm run migrate
@@ -41,6 +39,8 @@ npm run dev
 ```
 
 Now open http://localhost:3000
+
+> **Note:** The `postinstall` step automatically adjusts Prisma's datasource provider based on your `DATABASE_URL`, so as long as that variable points at your Postgres instance the Prisma schema stays in sync.
 
 ## Deploy (Vercel + Neon/Postgres)
 
