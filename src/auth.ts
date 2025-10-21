@@ -1,4 +1,5 @@
-import NextAuth, { getServerSession } from 'next-auth';
+import NextAuth from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -93,8 +94,15 @@ const authConfig = {
 
 const handler = NextAuth(authConfig);
 
-export const GET = handler;
-export const POST = handler;
+type NextAuthRouteParams = { params: Promise<{ nextauth: string[] }> | { nextauth: string[] } };
+
+export async function GET(request: NextRequest, context: NextAuthRouteParams) {
+  return handler(request, context as any);
+}
+
+export async function POST(request: NextRequest, context: NextAuthRouteParams) {
+  return handler(request, context as any);
+}
 
 export function auth() {
   return getServerSession(authConfig);
