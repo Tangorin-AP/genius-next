@@ -44,10 +44,11 @@ Now open http://localhost:3000
 
 ## Deploy (Vercel + Neon/Postgres)
 
-1. **Create a Neon or Supabase Postgres** database. Copy the connection string (e.g. `postgresql://...`).  
+1. **Create a Neon or Supabase Postgres** database. Copy the connection string (e.g. `postgresql://...`).
 2. In Vercel → Project → **Environment Variables**:
    - `DATABASE_PROVIDER=postgresql`
    - `DATABASE_URL=<your-postgres-connection-string>`
+   - During install the build will run `scripts/sync-prisma-provider.mjs`, which rewrites `prisma/schema.prisma` so Prisma uses the matching datasource provider. (Defaults to `sqlite` when `DATABASE_PROVIDER` is not set.)
 3. Add a build hook or first deploy; then run migrations (from your local machine):
    ```bash
    # push schema to remote db
