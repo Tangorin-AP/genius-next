@@ -1,6 +1,6 @@
 
 import type { Prisma } from '@prisma/client';
-import { prisma } from './prisma';
+import { prisma, prismaReady } from './prisma';
 import { AssocView, Direction } from './types';
 
 const SEC = 1000;
@@ -264,6 +264,7 @@ function chooseByScore(
 }
 
 export async function chooseAssociations({ deckId, userId, count, minimumScore = -1, mValue = 1 }: ChooseOptions): Promise<SessionPlan> {
+  await prismaReady;
   const associations = await prisma.association.findMany({
     where: {
       pair: { deckId, deck: { userId } },
@@ -339,6 +340,7 @@ function toAssocView(a: AssociationRecord): AssocView {
 }
 
 export async function mark(userId: string, associationId: string, decision: 'RIGHT' | 'WRONG' | 'SKIP') {
+  await prismaReady;
   const association = await prisma.association.findFirst({
     where: { id: associationId, pair: { deck: { userId } } },
     include: { pair: true },

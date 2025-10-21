@@ -1,14 +1,15 @@
 // src/app/actions.ts
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { assertDatabaseUrl } from '@/lib/env';
 import { auth } from '@/auth';
 
-function ensureDatabase() {
+async function ensureDatabase() {
   assertDatabaseUrl();
+  await prismaReady;
 }
 
 async function requireUserId(): Promise<string> {
@@ -20,7 +21,7 @@ async function requireUserId(): Promise<string> {
 }
 
 export async function createDeck(formData: FormData) {
-  ensureDatabase();
+  await ensureDatabase();
   const userId = await requireUserId();
   const rawName = String(formData.get('name') ?? '').trim();
   const name = rawName === '' ? 'Untitled Pack' : rawName;
@@ -30,7 +31,7 @@ export async function createDeck(formData: FormData) {
 }
 
 export async function renameDeck(formData: FormData) {
-  ensureDatabase();
+  await ensureDatabase();
   const userId = await requireUserId();
   const deckId = String(formData.get('deckId') ?? '');
   if (!deckId) return;
@@ -44,7 +45,7 @@ export async function renameDeck(formData: FormData) {
 }
 
 export async function deleteDeck(formData: FormData) {
-  ensureDatabase();
+  await ensureDatabase();
   const userId = await requireUserId();
   const deckId = String(formData.get('deckId') ?? '');
   if (!deckId) return;
@@ -119,7 +120,7 @@ function parseCSV(text: string) {
 }
 
 export async function importCSV(deckId: string, csvText: string) {
-  ensureDatabase();
+  await ensureDatabase();
   const userId = await requireUserId();
   const deck = await prisma.deck.findFirst({ where: { id: deckId, userId }, select: { id: true } });
   if (!deck) return;
@@ -174,7 +175,7 @@ export async function importCSV(deckId: string, csvText: string) {
 type TextReadable = { text: () => Promise<string> };
 
 export async function importCSVFromForm(deckId: string, formData: FormData) {
-  ensureDatabase();
+  await ensureDatabase();
   await requireUserId();
   const file = formData.get('csv');
   if (!file || typeof (file as Partial<TextReadable>).text !== 'function') return;
@@ -183,7 +184,7 @@ export async function importCSVFromForm(deckId: string, formData: FormData) {
 }
 
 export async function saveRow(formData: FormData) {
-  ensureDatabase();
+  await ensureDatabase();
   const userId = await requireUserId();
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');
@@ -261,7 +262,7 @@ export async function saveRow(formData: FormData) {
 }
 
 export async function deletePair(formData: FormData) {
-  ensureDatabase();
+  await ensureDatabase();
   const userId = await requireUserId();
   const deckId = String(formData.get('deckId') ?? '');
   const pairId = String(formData.get('pairId') ?? '');

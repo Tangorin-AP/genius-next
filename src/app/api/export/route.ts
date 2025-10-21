@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 import { hasDatabaseUrl } from '@/lib/env';
 import { auth } from '@/auth';
 
@@ -24,6 +24,8 @@ export async function GET(req: Request){
   const { searchParams } = new URL(req.url);
   const deckId = searchParams.get('deckId');
   if (!deckId) return NextResponse.json({ ok:false, error: 'deckId required' }, { status: 400 });
+
+  await prismaReady;
 
   const deck = await prisma.deck.findFirst({ where: { id: deckId, userId: session.user.id }, select: { name: true } });
   if (!deck) {

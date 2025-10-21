@@ -33,6 +33,7 @@ vi.mock('../prisma', () => ({
       findMany: prismaMocks.findMany,
     },
   },
+  prismaReady: Promise.resolve(),
 }));
 
 function createAssociation(index: number, score: number | null, importance: number): MockAssociation {

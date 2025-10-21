@@ -9,7 +9,12 @@ if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') {
   process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
 }
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+type PrismaGlobal = {
+  prisma?: PrismaClient;
+  prismaReady?: Promise<void>;
+};
+
+const globalForPrisma = global as unknown as PrismaGlobal;
 
 export const prisma =
   globalForPrisma.prisma ||
