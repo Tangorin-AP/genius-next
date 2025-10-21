@@ -1,6 +1,5 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
@@ -12,8 +11,7 @@ const credentialsSchema = z.object({
 });
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
-  session: { strategy: 'database' },
+  session: { strategy: 'jwt' },
   pages: {
     signIn: '/login',
   },
@@ -41,17 +39,34 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.name = user.name;
+        token.email = user.email;
+        if ('image' in user) {
+          token.picture = user.image;
+        }
+      }
+
+      return token;
+    },
+    async session({ session, token }) {
+      const tokenId = typeof token.id === 'string' ? token.id : typeof token.sub === 'string' ? token.sub : undefined;
+
       if (session.user) {
-        session.user.id = user?.id ?? session.user.id;
-      } else if (user) {
+        if (tokenId) {
+          session.user.id = tokenId;
+        }
+      } else if (tokenId) {
         session.user = {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
+          id: tokenId,
+          name: token.name ?? null,
+          email: token.email ?? null,
+          image: token.picture ? String(token.picture) : null,
         };
       }
+
       return session;
     },
   },
