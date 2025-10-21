@@ -49,14 +49,7 @@ Now open http://localhost:3000
    - `DATABASE_URL=<your-postgres-connection-string>`
    - Optional but recommended: `DATABASE_PROVIDER=postgresql`
    - During install the build will run `scripts/sync-prisma-provider.mjs`, which rewrites `prisma/schema.prisma` so Prisma uses the matching datasource provider. If `DATABASE_PROVIDER` is not set, the script will infer the correct provider from `DATABASE_URL` (e.g. Postgres URLs automatically flip the schema to `postgresql`).
-3. Deploy. The included `vercel.json` makes the build command run `scripts/vercel-build.mjs`, which:
-   - re-syncs the Prisma provider based on your environment variables,
-   - attempts `npx prisma migrate deploy --schema=./prisma/schema.prisma`, and
-   - always runs `next build` (even if migrations could not be applied so the deployment can finish).
-
-   If the migration step logs a warning (for example, because existing data blocks a required column), finish the deploy and then
-   reconcile the database manually:
-
+3. Add a build hook or first deploy; then run migrations (from your local machine):
    ```bash
    npx prisma migrate deploy --schema=./prisma/schema.prisma
    ```
