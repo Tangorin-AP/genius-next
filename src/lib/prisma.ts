@@ -1,6 +1,8 @@
 
 import { PrismaClient } from '@prisma/client';
 
+import { ensurePrismaSchema } from './prisma-ensure';
+
 const DEFAULT_DATABASE_URL = 'file:./dev.db';
 
 if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') {
@@ -14,5 +16,9 @@ export const prisma =
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
+
+const schemaReady = ensurePrismaSchema(prisma);
+
+await schemaReady;
 
 if (process.env.NODE_ENV !== 'production') (globalForPrisma as any).prisma = prisma;
