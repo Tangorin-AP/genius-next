@@ -158,18 +158,20 @@ describe('auth actions authentication configuration', () => {
     }
   });
 
-  it('returns a friendly error when the authentication secret is not configured', async () => {
+  it('attempts to sign in using the derived secret when authentication env vars are missing', async () => {
     const formData = new FormData();
     formData.set('email', 'user@example.com');
     formData.set('password', 'password123');
 
+    signInMock.mockResolvedValueOnce(undefined);
+
     const result = await loginAction({}, formData);
 
     expect(result).toEqual({
-      error: 'Authentication is not configured. Please try again later.',
+      error: 'Unable to sign in. Please try again.',
     });
-    expect(signInMock).not.toHaveBeenCalled();
-    expect(consumeRateLimitMock).not.toHaveBeenCalled();
+    expect(signInMock).toHaveBeenCalledTimes(1);
+    expect(consumeRateLimitMock).toHaveBeenCalledTimes(1);
   });
 });
 
