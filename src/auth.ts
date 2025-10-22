@@ -1,5 +1,5 @@
-import NextAuth from 'next-auth';
-import { getServerSession } from 'next-auth/next';
+import { createRequire } from 'node:module';
+
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -10,6 +10,35 @@ import { cookies } from 'next/headers';
 import type { JWT } from 'next-auth/jwt';
 
 import { prisma, prismaReady } from '@/lib/prisma';
+
+const require = createRequire(import.meta.url);
+
+type NextAuthRouteParams = { params: Promise<{ nextauth: string[] }> | { nextauth: string[] } };
+
+type NextAuthRouteHandler = (request: NextRequest, context: NextAuthRouteParams) => Promise<Response>;
+
+type NextAuthHandlers = {
+  GET: NextAuthRouteHandler;
+  POST: NextAuthRouteHandler;
+};
+
+type NextAuthReturn =
+  | NextAuthRouteHandler
+  | {
+      handlers: NextAuthHandlers;
+      auth?: () => Promise<Session | null>;
+    };
+
+type GetServerSession = (...args: unknown[]) => Promise<Session | null>;
+
+type NextAuthFactory = (options: unknown) => NextAuthReturn;
+
+type NextAuthModule = {
+  default?: NextAuthFactory;
+  handlers?: NextAuthHandlers;
+  auth?: () => Promise<Session | null>;
+  getServerSession?: unknown;
+};
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -92,20 +121,109 @@ const authConfig = {
   },
 };
 
-const handler = NextAuth(authConfig);
+const loadedNextAuth = require('next-auth') as NextAuthModule | NextAuthFactory;
 
-type NextAuthRouteParams = { params: Promise<{ nextauth: string[] }> | { nextauth: string[] } };
+const createNextAuth: NextAuthFactory =
+  typeof loadedNextAuth === 'function'
+    ? loadedNextAuth
+    : typeof loadedNextAuth?.default === 'function'
+      ? loadedNextAuth.default
+      : ((_options: unknown) => {
+          throw new Error('Failed to load next-auth default export.');
+        }) as NextAuthFactory;
+
+const initialGetServerSession = (() => {
+  if (typeof loadedNextAuth === 'function') {
+    const candidate = (loadedNextAuth as NextAuthFactory & { getServerSession?: unknown }).getServerSession;
+    if (typeof candidate === 'function') {
+      return candidate as GetServerSession;
+    }
+    return undefined;
+  }
+
+  if (loadedNextAuth && typeof loadedNextAuth.getServerSession === 'function') {
+    return loadedNextAuth.getServerSession as GetServerSession;
+  }
+
+  return undefined;
+})();
+
+const nextAuthResult = createNextAuth(authConfig as any) as NextAuthReturn;
+
+const handlers: NextAuthHandlers =
+  typeof nextAuthResult === 'function'
+    ? {
+        GET: (request, context) => nextAuthResult(request, context as any),
+        POST: (request, context) => nextAuthResult(request, context as any),
+      }
+    : nextAuthResult.handlers;
+
+const modernAuth =
+  typeof nextAuthResult === 'function'
+    ? undefined
+    : typeof nextAuthResult.auth === 'function'
+      ? nextAuthResult.auth
+      : undefined;
+
+let cachedGetServerSession: GetServerSession | undefined = initialGetServerSession;
+
+function loadGetServerSession(): GetServerSession {
+  if (cachedGetServerSession) return cachedGetServerSession;
+
+  const tryRequire = (loader: () => { getServerSession?: unknown }): GetServerSession | undefined => {
+    try {
+      const mod = loader();
+      if (typeof mod.getServerSession === 'function') {
+        return mod.getServerSession as GetServerSession;
+      }
+      return undefined;
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        typeof (error as { code?: unknown }).code === 'string' &&
+        (error as { code?: string }).code === 'MODULE_NOT_FOUND'
+      ) {
+        return undefined;
+      }
+      throw error;
+    }
+  };
+
+  const loaders = [
+    () =>
+      (typeof loadedNextAuth === 'function'
+        ? (loadedNextAuth as NextAuthFactory & { getServerSession?: unknown })
+        : (loadedNextAuth ?? {})) as { getServerSession?: unknown },
+    () => require('next-auth/next') as { getServerSession?: unknown },
+  ];
+
+  for (const loader of loaders) {
+    const resolved = tryRequire(loader);
+    if (resolved) {
+      cachedGetServerSession = resolved;
+      return cachedGetServerSession;
+    }
+  }
+
+  throw new Error('getServerSession is not available in the installed version of next-auth.');
+}
 
 export async function GET(request: NextRequest, context: NextAuthRouteParams) {
-  return handler(request, context as any);
+  return handlers.GET(request, context as any);
 }
 
 export async function POST(request: NextRequest, context: NextAuthRouteParams) {
-  return handler(request, context as any);
+  return handlers.POST(request, context as any);
 }
 
 export function auth() {
-  return getServerSession(authConfig);
+  if (modernAuth) {
+    return modernAuth();
+  }
+
+  return loadGetServerSession()(authConfig);
 }
 
 function baseUrl(): string {
@@ -168,6 +286,8 @@ async function callAuthHandler(path: string[], init: RequestInit = {}): Promise<
     headers: headersInit,
     body: init.body as any,
   });
+  const method = (init.method ?? 'GET').toUpperCase();
+  const handler = method === 'POST' ? handlers.POST : handlers.GET;
   const response = await handler(request, { params: { nextauth: path } });
   applyResponseCookies(response);
   return response;
