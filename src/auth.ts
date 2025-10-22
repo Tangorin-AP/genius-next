@@ -1,4 +1,4 @@
-import NextAuth, { getServerSession } from 'next-auth';
+import NextAuth from 'next-auth';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -10,8 +10,6 @@ import type { JWT } from 'next-auth/jwt';
 import { createRequire } from 'module';
 
 import { prisma, prismaReady } from '@/lib/prisma';
-
-const require = createRequire(import.meta.url);
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -127,29 +125,34 @@ const modernAuth =
       ? nextAuthResult.auth
       : undefined;
 
-type GetServerSession = typeof import('next-auth/next').getServerSession;
+type GetServerSession = (authOptions: unknown) => Promise<Session | null>;
 
 let cachedGetServerSession: GetServerSession | undefined =
   typeof getServerSession === 'function' ? (getServerSession as GetServerSession) : undefined;
 
-function loadGetServerSession(): GetServerSession {
+function isModuleNotFound(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof (error as { code?: unknown }).code === 'string' &&
+    ((error as { code?: string }).code === 'MODULE_NOT_FOUND' ||
+      (error as { code?: string }).code === 'ERR_MODULE_NOT_FOUND')
+  );
+}
+
+async function loadGetServerSession(): Promise<GetServerSession> {
   if (cachedGetServerSession) return cachedGetServerSession;
 
-  const tryRequire = (loader: () => { getServerSession?: unknown }): GetServerSession | undefined => {
+  const tryImport = async (load: () => Promise<any>) => {
     try {
-      const mod = loader();
+      const mod = (await load()) as { getServerSession?: unknown };
       if (typeof mod.getServerSession === 'function') {
         return mod.getServerSession as GetServerSession;
       }
       return undefined;
     } catch (error) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        typeof (error as { code?: unknown }).code === 'string' &&
-        (error as { code?: string }).code === 'MODULE_NOT_FOUND'
-      ) {
+      if (isModuleNotFound(error)) {
         return undefined;
       }
       throw error;
@@ -178,12 +181,13 @@ export async function POST(request: NextRequest, context: NextAuthRouteParams) {
   return handlers.POST(request, context as any);
 }
 
-export function auth() {
+export async function auth() {
   if (modernAuth) {
     return modernAuth();
   }
 
-  return loadGetServerSession()(authConfig);
+  const getSession = await loadGetServerSession();
+  return getSession(authConfig);
 }
 
 function baseUrl(): string {
