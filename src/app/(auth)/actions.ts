@@ -1,9 +1,9 @@
-'use server';
-
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+
+import { AuthError } from 'next-auth';
 
 import { signIn } from '@/auth';
 import { prisma, prismaReady } from '@/lib/prisma';
@@ -42,12 +42,27 @@ const AUTH_NOT_CONFIGURED: ActionResult = {
 
 type AuthLikeError = Error & { type?: string };
 
+const CLIENT_SAFE_AUTH_ERROR_TYPES = new Set([
+  'CredentialsSignin',
+  'OAuthAccountNotLinked',
+  'OAuthCallbackError',
+  'AccessDenied',
+  'Verification',
+  'MissingCSRF',
+  'AccountNotLinked',
+  'WebAuthnVerificationError',
+]);
+
 function isCredentialsSigninError(error: unknown): error is AuthLikeError & { type: 'CredentialsSignin' } {
   return (
     error instanceof Error &&
     typeof (error as AuthLikeError).type === 'string' &&
     (error as AuthLikeError).type === 'CredentialsSignin'
   );
+}
+
+function isAuthConfigurationError(error: unknown): error is AuthError {
+  return error instanceof AuthError && !CLIENT_SAFE_AUTH_ERROR_TYPES.has(error.type);
 }
 
 function clientKey(prefix: string): string {
@@ -118,6 +133,7 @@ export async function registerAction(
   _prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
+  'use server';
   try {
     const dbError = ensureDatabaseConfiguration();
     if (dbError) {
@@ -191,6 +207,14 @@ export async function registerAction(
       if (isCredentialsSigninError(error)) {
         return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
       }
+      if (error instanceof AuthError) {
+        if (isAuthConfigurationError(error)) {
+          console.error('Automatic sign-in failed due to authentication configuration.', error);
+          return AUTH_NOT_CONFIGURED;
+        }
+        console.error('Automatic sign-in failed due to an unexpected authentication error.', error);
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
       throw error;
     }
 
@@ -208,6 +232,7 @@ export async function loginAction(
   _prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
+  'use server';
   const dbError = ensureDatabaseConfiguration();
   if (dbError) {
     return dbError;
@@ -267,6 +292,14 @@ export async function loginAction(
     }
     if (isCredentialsSigninError(error)) {
       return { error: 'Invalid email or password.' };
+    }
+    if (error instanceof AuthError) {
+      if (isAuthConfigurationError(error)) {
+        console.error('Login failed due to authentication configuration.', error);
+        return AUTH_NOT_CONFIGURED;
+      }
+      console.error('Login failed due to an unexpected authentication error.', error);
+      return { error: 'Unable to sign in. Please try again.' };
     }
     throw error;
   }
