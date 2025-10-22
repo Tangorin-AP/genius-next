@@ -2,11 +2,13 @@ import NextAuth from 'next-auth';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { JWT } from 'next-auth/jwt';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import { NextRequest } from 'next/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import bcrypt from 'bcryptjs';
-import { z } from 'zod';
+import type { JWT } from 'next-auth/jwt';
+import { createRequire } from 'module';
 
 import { prisma, prismaReady } from '@/lib/prisma';
 
@@ -91,10 +93,103 @@ const authConfig = {
   },
 };
 
-const { auth, handlers } = NextAuth(authConfig);
+type NextAuthRouteParams = { params: { nextauth: string[] } };
 
-export { auth };
-export const { GET, POST } = handlers;
+type NextAuthRouteHandler = (request: NextRequest, context: NextAuthRouteParams) => Promise<Response>;
+
+type NextAuthHandlers = {
+  GET: NextAuthRouteHandler;
+  POST: NextAuthRouteHandler;
+};
+
+type NextAuthReturn =
+  | NextAuthRouteHandler
+  | {
+      handlers: NextAuthHandlers;
+      auth?: () => Promise<Session | null>;
+    };
+
+const nextAuthResult = NextAuth(authConfig as any) as NextAuthReturn;
+
+const handlers: NextAuthHandlers =
+  typeof nextAuthResult === 'function'
+    ? {
+        GET: (request, context) => nextAuthResult(request, context as any),
+        POST: (request, context) => nextAuthResult(request, context as any),
+      }
+    : nextAuthResult.handlers;
+
+const modernAuth =
+  typeof nextAuthResult === 'function'
+    ? undefined
+    : typeof nextAuthResult.auth === 'function'
+      ? nextAuthResult.auth
+      : undefined;
+
+type GetServerSession = (authOptions: unknown) => Promise<Session | null>;
+
+let cachedGetServerSession: GetServerSession | undefined =
+  typeof getServerSession === 'function' ? (getServerSession as GetServerSession) : undefined;
+
+function isModuleNotFound(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof (error as { code?: unknown }).code === 'string' &&
+    ((error as { code?: string }).code === 'MODULE_NOT_FOUND' ||
+      (error as { code?: string }).code === 'ERR_MODULE_NOT_FOUND')
+  );
+}
+
+async function loadGetServerSession(): Promise<GetServerSession> {
+  if (cachedGetServerSession) return cachedGetServerSession;
+
+  const tryImport = async (load: () => Promise<any>) => {
+    try {
+      const mod = (await load()) as { getServerSession?: unknown };
+      if (typeof mod.getServerSession === 'function') {
+        return mod.getServerSession as GetServerSession;
+      }
+      return undefined;
+    } catch (error) {
+      if (isModuleNotFound(error)) {
+        return undefined;
+      }
+      throw error;
+    }
+  };
+
+  if (!cachedGetServerSession) {
+    const primary = () => require('next-auth') as { getServerSession?: unknown };
+    const fallback = () => require('next-auth/next') as { getServerSession?: unknown };
+
+    cachedGetServerSession = tryRequire(primary) ?? tryRequire(fallback);
+  }
+
+  if (!cachedGetServerSession) {
+    throw new Error('getServerSession is not available in the installed version of next-auth.');
+  }
+
+  return cachedGetServerSession;
+}
+
+export async function GET(request: NextRequest, context: NextAuthRouteParams) {
+  return handlers.GET(request, context as any);
+}
+
+export async function POST(request: NextRequest, context: NextAuthRouteParams) {
+  return handlers.POST(request, context as any);
+}
+
+export async function auth() {
+  if (modernAuth) {
+    return modernAuth();
+  }
+
+  const getSession = await loadGetServerSession();
+  return getSession(authConfig);
+}
 
 function baseUrl(): string {
   if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
@@ -157,10 +252,9 @@ async function callAuthHandler(path: string[], init: RequestInit = {}): Promise<
     headers: headersInit,
     body: init.body as any,
   });
-
   const method = (init.method ?? 'GET').toUpperCase();
   const handler = method === 'POST' ? handlers.POST : handlers.GET;
-  const response = await handler(request);
+  const response = await handler(request, { params: { nextauth: path } });
   applyResponseCookies(response);
   return response;
 }
@@ -218,14 +312,4 @@ export async function signIn(
   redirect(url);
 }
 
-export async function signOut(): Promise<void> {
-  const response = await callAuthHandler(['signout'], {
-    method: 'POST',
-    headers: new Headers({ 'content-type': 'application/x-www-form-urlencoded' }),
-    body: new URLSearchParams({ json: 'true' }),
-  });
-
-  const result = await response.json();
-  const url = typeof result?.url === 'string' ? result.url : '/';
-  redirect(url);
-}
+export const { GET, POST } = handlers;
