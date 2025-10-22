@@ -1,6 +1,4 @@
-import { createRequire } from 'node:module';
-
-import NextAuth from 'next-auth';
+import NextAuth, { getServerSession } from 'next-auth';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
