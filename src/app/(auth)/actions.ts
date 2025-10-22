@@ -158,7 +158,31 @@ export async function registerAction(
 
     const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
     try {
-      await signIn('credentials', { email, password, redirectTo: callbackUrl });
+      const signInResult = await signIn('credentials', {
+        email,
+        password,
+        redirectTo: callbackUrl,
+        redirect: false,
+      });
+
+      const signInError = extractSignInError(signInResult);
+      if (signInError === 'CredentialsSignin') {
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
+      if (signInError === 'Configuration') {
+        return AUTH_NOT_CONFIGURED;
+      }
+      if (signInError) {
+        console.error('Unexpected error returned from automatic sign-in after registration.', signInError, signInResult);
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
+
+      if (!signInResult || typeof signInResult !== 'string') {
+        console.error('Automatic sign-in did not return a redirect URL after registration.', signInResult);
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
+
+      redirect(callbackUrl);
     } catch (error) {
       if (isPrismaSchemaMissingError(error)) {
         console.error('Automatic sign-in failed because the database schema is missing required tables.', error);
@@ -221,6 +245,9 @@ export async function loginAction(
     const signInError = extractSignInError(signInResult);
     if (signInError === 'CredentialsSignin') {
       return { error: 'Invalid email or password.' };
+    }
+    if (signInError === 'Configuration') {
+      return AUTH_NOT_CONFIGURED;
     }
     if (signInError) {
       console.error('Unexpected error returned from sign-in.', signInError, signInResult);
