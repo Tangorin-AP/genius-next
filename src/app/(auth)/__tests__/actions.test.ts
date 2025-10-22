@@ -20,9 +20,10 @@ const { AuthError } = await import('next-auth');
 import * as env from '@/lib/env';
 
 const prismaUser = {
-  findUnique: vi.fn(),
   create: vi.fn(),
 };
+
+const findUserByEmailInsensitiveMock = vi.fn();
 
 const consumeRateLimitMock = vi.fn(() => true);
 const remainingMsMock = vi.fn(() => 0);
@@ -40,6 +41,10 @@ vi.mock('@/lib/prisma', () => ({
     user: prismaUser,
   },
   prismaReady: prismaReadyMock,
+}));
+
+vi.mock('@/lib/user-queries', () => ({
+  findUserByEmailInsensitive: findUserByEmailInsensitiveMock,
 }));
 
 vi.mock('@/lib/rateLimit', () => ({
@@ -123,7 +128,7 @@ describe('auth actions database configuration', () => {
     });
     expect(assertSpy).not.toHaveBeenCalled();
     expect(consumeRateLimitMock).not.toHaveBeenCalled();
-    expect(prismaUser.findUnique).not.toHaveBeenCalled();
+    expect(findUserByEmailInsensitiveMock).not.toHaveBeenCalled();
     expect(prismaUser.create).not.toHaveBeenCalled();
 
     assertSpy.mockRestore();
@@ -181,7 +186,7 @@ describe('auth actions sign-in configuration errors', () => {
     process.env.NODE_ENV = 'production';
     process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/db';
     process.env.AUTH_SECRET = 'test-secret';
-    prismaUser.findUnique.mockResolvedValue(null as any);
+    findUserByEmailInsensitiveMock.mockResolvedValue(null as any);
     prismaUser.create.mockResolvedValue({} as any);
     signInMock.mockResolvedValue('http://localhost:3000/api/auth/callback/credentials?error=Configuration');
   });
@@ -243,7 +248,7 @@ describe('auth actions sign-in thrown auth errors', () => {
     process.env.NODE_ENV = 'production';
     process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/db';
     process.env.AUTH_SECRET = 'test-secret';
-    prismaUser.findUnique.mockResolvedValue(null as any);
+    findUserByEmailInsensitiveMock.mockResolvedValue(null as any);
     prismaUser.create.mockResolvedValue({} as any);
   });
 
