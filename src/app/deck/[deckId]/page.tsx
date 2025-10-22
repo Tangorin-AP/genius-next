@@ -38,7 +38,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
     );
   }
 
-  await prismaReady;
+  await prismaReady();
 
   const deck = await prisma.deck.findFirst({
     where: { id: params.deckId, userId: session.user.id },

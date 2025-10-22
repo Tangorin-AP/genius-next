@@ -5,13 +5,6 @@ import { ensurePrismaSchema } from './prisma-ensure';
 
 const DEFAULT_DATABASE_URL = 'file:./dev.db';
 
-if (
-  (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') &&
-  process.env.NODE_ENV !== 'production'
-) {
-  process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
-}
-
 type PrismaGlobal = {
   prisma?: PrismaClient;
   prismaReady?: Promise<void>;
@@ -19,18 +12,64 @@ type PrismaGlobal = {
 
 const globalForPrisma = global as unknown as PrismaGlobal;
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
+let prismaClient: PrismaClient | undefined = globalForPrisma.prisma;
+let prismaReadyPromise: Promise<void> | undefined = globalForPrisma.prismaReady;
 
-const prismaReadyPromise =
-  globalForPrisma.prismaReady || ensurePrismaSchema(prisma);
+function ensureDatabaseUrl() {
+  if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'DATABASE_URL is required in production. Set the DATABASE_URL environment variable to a valid database connection string.',
+      );
+    }
 
-if (process.env.NODE_ENV !== 'production') {
-  (globalForPrisma as any).prisma = prisma;
-  (globalForPrisma as any).prismaReady = prismaReadyPromise;
+    process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
+  }
 }
 
-export const prismaReady = prismaReadyPromise;
+function createPrismaClient(): PrismaClient {
+  ensureDatabaseUrl();
+
+  return new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  });
+}
+
+function getPrismaClient(): PrismaClient {
+  if (!prismaClient) {
+    prismaClient = createPrismaClient();
+    if (process.env.NODE_ENV !== 'production') {
+      (globalForPrisma as any).prisma = prismaClient;
+    }
+  }
+
+  return prismaClient;
+}
+
+function getPrismaReadyPromise(): Promise<void> {
+  if (!prismaReadyPromise) {
+    const client = getPrismaClient();
+    prismaReadyPromise = ensurePrismaSchema(client).catch((error) => {
+      prismaReadyPromise = undefined;
+      throw error;
+    });
+
+    if (process.env.NODE_ENV !== 'production') {
+      (globalForPrisma as any).prismaReady = prismaReadyPromise;
+    }
+  }
+
+  return prismaReadyPromise;
+}
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});
+
+export function prismaReady(): Promise<void> {
+  return getPrismaReadyPromise();
+}

@@ -25,7 +25,7 @@ export async function GET(req: Request){
   const deckId = searchParams.get('deckId');
   if (!deckId) return NextResponse.json({ ok:false, error: 'deckId required' }, { status: 400 });
 
-  await prismaReady;
+  await prismaReady();
 
   const deck = await prisma.deck.findFirst({ where: { id: deckId, userId: session.user.id }, select: { name: true } });
   if (!deck) {

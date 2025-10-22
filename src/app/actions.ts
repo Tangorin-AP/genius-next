@@ -9,7 +9,7 @@ import { auth } from '@/auth';
 
 async function ensureDatabase() {
   assertDatabaseUrl();
-  await prismaReady;
+  await prismaReady();
 }
 
 async function requireUserId(): Promise<string> {

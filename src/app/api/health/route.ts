@@ -12,7 +12,7 @@ export async function GET() {
     );
   }
   try {
-    await prismaReady;
+    await prismaReady();
     // lightweight DB ping
     await prisma.$queryRaw`SELECT 1`;
     return NextResponse.json({ ok: true, hasDatabaseUrl: hasUrl, db: 'ok' });
