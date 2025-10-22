@@ -15,11 +15,9 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
 }
 
 export async function registerAction(formData: FormData): Promise<RegisterActionState | void> {
-  const emailValue = formData.get('email');
-  const rawEmail = typeof emailValue === 'string' ? emailValue.trim() : '';
+  const rawEmail = typeof formData.get('email') === 'string' ? formData.get('email')!.trim() : '';
   const email = rawEmail.toLowerCase();
-  const passwordValue = formData.get('password');
-  const password = typeof passwordValue === 'string' ? passwordValue : '';
+  const password = typeof formData.get('password') === 'string' ? formData.get('password')! : '';
   const nameValue = formData.get('name');
   const name = typeof nameValue === 'string' && nameValue.trim() ? nameValue.trim() : null;
   const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl'));
