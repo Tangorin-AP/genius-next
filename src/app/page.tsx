@@ -32,7 +32,7 @@ export default async function Home() {
     );
   }
 
-  await prismaReady;
+  await prismaReady();
 
   const decks = await prisma.deck.findMany({
     where: { userId: session.user.id },

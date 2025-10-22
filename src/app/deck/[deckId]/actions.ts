@@ -11,7 +11,7 @@ import { prisma, prismaReady } from '@/lib/prisma';
 
 async function ensureDatabase() {
   assertDatabaseUrl();
-  await prismaReady;
+  await prismaReady();
 }
 
 async function requireUserId(): Promise<string> {

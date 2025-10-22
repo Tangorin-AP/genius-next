@@ -35,7 +35,7 @@ const authConfig = {
         const parsed = credentialsSchema.safeParse(rawCredentials);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
-        await prismaReady;
+        await prismaReady();
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user?.passwordHash) return null;
         const isValid = await bcrypt.compare(password, user.passwordHash);

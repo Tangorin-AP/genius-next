@@ -27,13 +27,15 @@ const prismaMocks = vi.hoisted(() => ({
 
 const findManyMock = prismaMocks.findMany;
 
+const prismaReadyMock = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+
 vi.mock('../prisma', () => ({
   prisma: {
     association: {
       findMany: prismaMocks.findMany,
     },
   },
-  prismaReady: Promise.resolve(),
+  prismaReady: prismaReadyMock,
 }));
 
 function createAssociation(index: number, score: number | null, importance: number): MockAssociation {

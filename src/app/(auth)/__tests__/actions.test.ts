@@ -16,11 +16,13 @@ const headersMock = vi.fn(() => ({
 const redirectMock = vi.fn();
 const bcryptHashMock = vi.fn(async () => 'hashed');
 
+const prismaReadyMock = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     user: prismaUser,
   },
-  prismaReady: Promise.resolve(),
+  prismaReady: prismaReadyMock,
 }));
 
 vi.mock('@/lib/rateLimit', () => ({
