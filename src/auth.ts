@@ -1,12 +1,12 @@
-import NextAuth, { getServerSession } from 'next-auth';
+import NextAuth from 'next-auth';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
-import { z } from 'zod';
+import type { JWT } from 'next-auth/jwt';
 import { NextRequest } from 'next/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import type { JWT } from 'next-auth/jwt';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 
 import { prisma, prismaReady } from '@/lib/prisma';
 
@@ -91,14 +91,10 @@ const authConfig = {
   },
 };
 
-const handler = NextAuth(authConfig);
+const { auth, handlers } = NextAuth(authConfig);
 
-export const GET = handler;
-export const POST = handler;
-
-export function auth() {
-  return getServerSession(authConfig);
-}
+export { auth };
+export const { GET, POST } = handlers;
 
 function baseUrl(): string {
   if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
@@ -155,12 +151,16 @@ async function callAuthHandler(path: string[], init: RequestInit = {}): Promise<
   if (serialized && !headersInit.has('cookie')) {
     headersInit.set('cookie', serialized);
   }
+
   const request = new NextRequest(url, {
     method: init.method ?? 'GET',
     headers: headersInit,
     body: init.body as any,
   });
-  const response = await handler(request, { params: { nextauth: path } });
+
+  const method = (init.method ?? 'GET').toUpperCase();
+  const handler = method === 'POST' ? handlers.POST : handlers.GET;
+  const response = await handler(request);
   applyResponseCookies(response);
   return response;
 }
@@ -182,7 +182,13 @@ export async function signIn(
     throw error;
   }
 
-  const callbackUrl = typeof options.redirectTo === 'string' && options.redirectTo.trim() !== '' ? options.redirectTo : typeof options.callbackUrl === 'string' ? options.callbackUrl : '/';
+  const callbackUrl =
+    typeof options.redirectTo === 'string' && options.redirectTo.trim() !== ''
+      ? options.redirectTo
+      : typeof options.callbackUrl === 'string'
+        ? options.callbackUrl
+        : '/';
+
   const form = new URLSearchParams();
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined || value === null) continue;
@@ -218,6 +224,7 @@ export async function signOut(): Promise<void> {
     headers: new Headers({ 'content-type': 'application/x-www-form-urlencoded' }),
     body: new URLSearchParams({ json: 'true' }),
   });
+
   const result = await response.json();
   const url = typeof result?.url === 'string' ? result.url : '/';
   redirect(url);
