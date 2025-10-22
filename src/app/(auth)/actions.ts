@@ -9,7 +9,11 @@ import { AuthError } from 'next-auth';
 
 import { signIn } from '@/auth';
 import { prisma, prismaReady } from '@/lib/prisma';
-import { assertDatabaseUrl, ensureAuthSecret, isUsingFallbackDatabaseUrl } from '@/lib/env';
+import {
+  assertDatabaseUrl,
+  ensureAuthSecretForRuntime,
+  isUsingFallbackDatabaseUrl,
+} from '@/lib/env';
 import { isPrismaSchemaMissingError } from '@/lib/prisma-errors';
 import { consumeRateLimit, remainingMs } from '@/lib/rateLimit';
 
@@ -181,9 +185,15 @@ function ensureDatabaseConfiguration(): ActionResult | null {
 
 function ensureAuthConfiguration(): ActionResult | null {
   try {
-    const secret = ensureAuthSecret();
+    const { secret, fromEnv } = ensureAuthSecretForRuntime();
     if (!secret || secret.trim() === '') {
       throw new Error('Authentication secret is empty.');
+    }
+    if (!fromEnv) {
+      console.error(
+        'Authentication secret environment variables are not configured. Set AUTH_SECRET or NEXTAUTH_SECRET to enable sign-in.',
+      );
+      return AUTH_NOT_CONFIGURED;
     }
   } catch (error) {
     console.error(error);
