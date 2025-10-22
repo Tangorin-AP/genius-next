@@ -246,6 +246,7 @@ async function callAuthHandler(path: string[], init: RequestInit = {}): Promise<
   if (serialized && !headersInit.has('cookie')) {
     headersInit.set('cookie', serialized);
   }
+
   const request = new NextRequest(url, {
     method: init.method ?? 'GET',
     headers: headersInit,
@@ -275,7 +276,13 @@ export async function signIn(
     throw error;
   }
 
-  const callbackUrl = typeof options.redirectTo === 'string' && options.redirectTo.trim() !== '' ? options.redirectTo : typeof options.callbackUrl === 'string' ? options.callbackUrl : '/';
+  const callbackUrl =
+    typeof options.redirectTo === 'string' && options.redirectTo.trim() !== ''
+      ? options.redirectTo
+      : typeof options.callbackUrl === 'string'
+        ? options.callbackUrl
+        : '/';
+
   const form = new URLSearchParams();
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined || value === null) continue;
