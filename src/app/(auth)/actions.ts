@@ -63,13 +63,6 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
   return value;
 }
 
-type SignInResponseLike = {
-  error?: unknown;
-  ok?: unknown;
-  status?: unknown;
-  url?: unknown;
-};
-
 function extractSignInError(result: unknown): string | undefined {
   if (!result) {
     return undefined;
@@ -79,13 +72,8 @@ function extractSignInError(result: unknown): string | undefined {
 
   if (typeof result === 'string') {
     url = result;
-  } else if (typeof result === 'object') {
-    const candidate = result as SignInResponseLike;
-
-    if (typeof candidate.error === 'string' && candidate.error.length > 0) {
-      return candidate.error;
-    }
-
+  } else if (typeof result === 'object' && result) {
+    const candidate = result as { url?: unknown };
     if (typeof candidate.url === 'string') {
       url = candidate.url;
     }
@@ -101,32 +89,6 @@ function extractSignInError(result: unknown): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function didSignInSucceed(result: unknown): boolean {
-  if (!result) {
-    return false;
-  }
-
-  if (typeof result === 'string') {
-    return true;
-  }
-
-  if (typeof result === 'object') {
-    const candidate = result as SignInResponseLike;
-
-    if (typeof candidate.error === 'string' && candidate.error.length > 0) {
-      return false;
-    }
-
-    if (candidate.ok === false) {
-      return false;
-    }
-
-    return typeof candidate.url === 'string' && candidate.url.length > 0;
-  }
-
-  return false;
 }
 
 function ensureDatabaseConfiguration(): ActionResult | null {
@@ -196,28 +158,7 @@ export async function registerAction(
 
     const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
     try {
-      const signInResult = await signIn('credentials', {
-        email,
-        password,
-        redirectTo: callbackUrl,
-        redirect: false,
-      });
-
-      const signInError = extractSignInError(signInResult);
-      if (signInError === 'CredentialsSignin') {
-        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
-      }
-      if (signInError) {
-        console.error('Unexpected error returned from automatic sign-in after registration.', signInError, signInResult);
-        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
-      }
-
-      if (!didSignInSucceed(signInResult)) {
-        console.error('Automatic sign-in did not return a redirect URL after registration.', signInResult);
-        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
-      }
-
-      redirect(callbackUrl);
+      await signIn('credentials', { email, password, redirectTo: callbackUrl });
     } catch (error) {
       if (isPrismaSchemaMissingError(error)) {
         console.error('Automatic sign-in failed because the database schema is missing required tables.', error);
@@ -286,8 +227,8 @@ export async function loginAction(
       return { error: 'Unable to sign in. Please try again.' };
     }
 
-    if (!didSignInSucceed(signInResult)) {
-      console.error('Sign-in did not return a redirect URL.', signInResult);
+    if (!signInResult) {
+      console.error('Sign-in did not return a redirect URL.');
       return { error: 'Unable to sign in. Please try again.' };
     }
 
