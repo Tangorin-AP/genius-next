@@ -80,6 +80,61 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
   return value;
 }
 
+function requestOrigin(): string | undefined {
+  const headerList = headers();
+  const forwardedProto = headerList.get('x-forwarded-proto');
+  const forwardedHost = headerList.get('x-forwarded-host');
+  const host = forwardedHost ?? headerList.get('host');
+
+  if (!host) {
+    return undefined;
+  }
+
+  const proto = forwardedProto ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
+
+function resolveRedirectTarget(result: unknown, fallback: string): string {
+  let url: string | undefined;
+
+  if (typeof result === 'string') {
+    url = result;
+  } else if (result && typeof result === 'object') {
+    const candidate = result as { url?: unknown };
+    if (typeof candidate.url === 'string') {
+      url = candidate.url;
+    }
+  }
+
+  if (!url) {
+    return fallback;
+  }
+
+  try {
+    const origin = requestOrigin();
+    if (!origin) {
+      return fallback;
+    }
+
+    const parsed = new URL(url, origin);
+    if (parsed.origin !== origin) {
+      return fallback;
+    }
+
+    if (parsed.pathname.startsWith('/api/auth')) {
+      return fallback;
+    }
+
+    const relative = `${parsed.pathname}${parsed.search}`;
+    return sanitizeCallbackUrl(relative) ?? fallback;
+  } catch {
+    if (url.startsWith('/')) {
+      return sanitizeCallbackUrl(url) ?? fallback;
+    }
+    return fallback;
+  }
+}
+
 function extractSignInError(result: unknown): string | undefined {
   if (!result) {
     return undefined;
@@ -200,7 +255,8 @@ export async function registerAction(
         return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
       }
 
-      redirect(callbackUrl);
+      const target = resolveRedirectTarget(signInResult, callbackUrl);
+      redirect(target);
     } catch (error) {
       if (isPrismaSchemaMissingError(error)) {
         console.error('Automatic sign-in failed because the database schema is missing required tables.', error);
@@ -286,7 +342,8 @@ export async function loginAction(
       return { error: 'Unable to sign in. Please try again.' };
     }
 
-    redirect(callbackUrl);
+    const target = resolveRedirectTarget(signInResult, callbackUrl);
+    redirect(target);
   } catch (error) {
     if (isPrismaSchemaMissingError(error)) {
       console.error('Login failed because the database schema is missing required tables.', error);
