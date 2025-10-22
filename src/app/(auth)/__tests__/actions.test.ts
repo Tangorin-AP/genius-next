@@ -1,5 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('next-auth', () => {
+  class MockAuthError extends Error {
+    static type = 'AuthError';
+    type: string;
+
+    constructor(message?: string) {
+      super(message);
+      this.name = 'AuthError';
+      this.type = (this.constructor as typeof MockAuthError).type;
+    }
+  }
+
+  return { AuthError: MockAuthError };
+});
+
+const { AuthError } = await import('next-auth');
+
 import * as env from '@/lib/env';
 
 const prismaUser = {
@@ -47,6 +64,14 @@ vi.mock('bcryptjs', () => ({
     hash: bcryptHashMock,
   },
 }));
+
+class TestMissingSecretError extends AuthError {
+  static type = 'MissingSecret';
+}
+
+class TestAccessDeniedError extends AuthError {
+  static type = 'AccessDenied';
+}
 
 const { loginAction, registerAction } = await import('../actions');
 
@@ -206,6 +231,80 @@ describe('auth actions sign-in configuration errors', () => {
 
     expect(result).toEqual({
       error: 'Authentication is not configured. Please try again later.',
+    });
+  });
+});
+
+describe('auth actions sign-in thrown auth errors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/db';
+    process.env.AUTH_SECRET = 'test-secret';
+    prismaUser.findUnique.mockResolvedValue(null as any);
+    prismaUser.create.mockResolvedValue({} as any);
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    if (ORIGINAL_DATABASE_URL !== undefined) {
+      process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
+    } else {
+      delete process.env.DATABASE_URL;
+    }
+    if (ORIGINAL_AUTH_SECRET !== undefined) {
+      process.env.AUTH_SECRET = ORIGINAL_AUTH_SECRET;
+    } else {
+      delete process.env.AUTH_SECRET;
+    }
+    if (ORIGINAL_NEXTAUTH_SECRET !== undefined) {
+      process.env.NEXTAUTH_SECRET = ORIGINAL_NEXTAUTH_SECRET;
+    } else {
+      delete process.env.NEXTAUTH_SECRET;
+    }
+  });
+
+  it('returns authentication configuration error when automatic sign-in throws configuration AuthError', async () => {
+    signInMock.mockRejectedValue(new TestMissingSecretError('Missing secret'));
+
+    const formData = new FormData();
+    formData.set('name', 'Example User');
+    formData.set('email', 'user@example.com');
+    formData.set('password', 'password123');
+
+    const result = await registerAction({}, formData);
+
+    expect(result).toEqual({
+      error: 'Authentication is not configured. Please try again later.',
+    });
+  });
+
+  it('returns a friendly message when automatic sign-in throws non-credential AuthError', async () => {
+    signInMock.mockRejectedValue(new TestAccessDeniedError('Access denied'));
+
+    const formData = new FormData();
+    formData.set('name', 'Example User');
+    formData.set('email', 'user@example.com');
+    formData.set('password', 'password123');
+
+    const result = await registerAction({}, formData);
+
+    expect(result).toEqual({
+      error: 'Registration succeeded but automatic sign-in failed. Please log in.',
+    });
+  });
+
+  it('returns a friendly message when sign-in throws non-credential AuthError during login', async () => {
+    signInMock.mockRejectedValue(new TestAccessDeniedError('Access denied'));
+
+    const formData = new FormData();
+    formData.set('email', 'user@example.com');
+    formData.set('password', 'password123');
+
+    const result = await loginAction({}, formData);
+
+    expect(result).toEqual({
+      error: 'Unable to sign in. Please try again.',
     });
   });
 });
