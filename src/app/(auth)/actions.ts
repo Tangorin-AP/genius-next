@@ -63,6 +63,34 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
   return value;
 }
 
+function extractSignInError(result: unknown): string | undefined {
+  if (!result) {
+    return undefined;
+  }
+
+  let url: string | undefined;
+
+  if (typeof result === 'string') {
+    url = result;
+  } else if (typeof result === 'object' && result) {
+    const candidate = result as { url?: unknown };
+    if (typeof candidate.url === 'string') {
+      url = candidate.url;
+    }
+  }
+
+  if (!url) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(url, 'http://localhost:3000');
+    return parsed.searchParams.get('error') ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function ensureDatabaseConfiguration(): ActionResult | null {
   if (process.env.NODE_ENV === 'production' && isUsingFallbackDatabaseUrl()) {
     return DATABASE_NOT_CONFIGURED;
@@ -183,11 +211,28 @@ export async function loginAction(
   const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
 
   try {
-    await signIn('credentials', {
+    const signInResult = await signIn('credentials', {
       email,
       password,
       redirectTo: callbackUrl,
+      redirect: false,
     });
+
+    const signInError = extractSignInError(signInResult);
+    if (signInError === 'CredentialsSignin') {
+      return { error: 'Invalid email or password.' };
+    }
+    if (signInError) {
+      console.error('Unexpected error returned from sign-in.', signInError, signInResult);
+      return { error: 'Unable to sign in. Please try again.' };
+    }
+
+    if (!signInResult) {
+      console.error('Sign-in did not return a redirect URL.');
+      return { error: 'Unable to sign in. Please try again.' };
+    }
+
+    redirect(callbackUrl);
   } catch (error) {
     if (isPrismaSchemaMissingError(error)) {
       console.error('Login failed because the database schema is missing required tables.', error);
