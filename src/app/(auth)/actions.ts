@@ -16,21 +16,24 @@ import {
 } from '@/lib/env';
 import { isPrismaSchemaMissingError } from '@/lib/prisma-errors';
 import { consumeRateLimit, remainingMs } from '@/lib/rateLimit';
+import { findUserByEmailInsensitive } from '@/lib/user-queries';
+
+const emailTransform = (message: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, message)
+    .email(message)
+    .transform((value) => value.toLowerCase());
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(50),
-  email: z
-    .string()
-    .email('A valid email is required')
-    .transform((value) => value.toLowerCase()),
+  email: emailTransform('A valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
 });
 
 const loginSchema = z.object({
-  email: z
-    .string()
-    .email('Enter a valid email address')
-    .transform((value) => value.toLowerCase()),
+  email: emailTransform('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
 });
 
@@ -183,17 +186,19 @@ function ensureDatabaseConfiguration(): ActionResult | null {
   return null;
 }
 
+let warnedMissingAuthSecret = false;
+
 function ensureAuthConfiguration(): ActionResult | null {
   try {
     const { secret, fromEnv } = ensureAuthSecretForRuntime();
     if (!secret || secret.trim() === '') {
       throw new Error('Authentication secret is empty.');
     }
-    if (!fromEnv) {
-      console.error(
-        'Authentication secret environment variables are not configured. Set AUTH_SECRET or NEXTAUTH_SECRET to enable sign-in.',
+    if (!fromEnv && !warnedMissingAuthSecret) {
+      console.warn(
+        'Authentication secret environment variables are not configured. Using a derived fallback secret for development.',
       );
-      return AUTH_NOT_CONFIGURED;
+      warnedMissingAuthSecret = true;
     }
   } catch (error) {
     console.error(error);
@@ -238,7 +243,7 @@ export async function registerAction(
 
     await prismaReady();
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await findUserByEmailInsensitive(email);
     if (existing) {
       return { error: 'An account with that email already exists.' };
     }
