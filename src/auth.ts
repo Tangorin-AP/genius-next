@@ -8,13 +8,24 @@ import type { NextRequest } from 'next/server';
 
 import { prisma, prismaReady } from '@/lib/prisma';
 import { isPrismaSchemaMissingError } from '@/lib/prisma-errors';
+import { ensureAuthSecret } from '@/lib/env';
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
 });
 
-const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+let secret: string | undefined;
+
+try {
+  secret = ensureAuthSecret();
+} catch (error) {
+  console.error(error);
+  if (process.env.NODE_ENV === 'production') {
+    throw error;
+  }
+  secret = 'development-auth-secret';
+}
 
 const authConfig = {
   session: { strategy: 'jwt' as const },

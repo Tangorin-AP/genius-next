@@ -147,3 +147,65 @@ describe('auth actions authentication configuration', () => {
     expect(consumeRateLimitMock).not.toHaveBeenCalled();
   });
 });
+
+describe('auth actions sign-in configuration errors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/db';
+    process.env.AUTH_SECRET = 'test-secret';
+    prismaUser.findUnique.mockResolvedValue(null as any);
+    prismaUser.create.mockResolvedValue({} as any);
+    signInMock.mockResolvedValue('http://localhost:3000/api/auth/callback/credentials?error=Configuration');
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    if (ORIGINAL_DATABASE_URL !== undefined) {
+      process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
+    } else {
+      delete process.env.DATABASE_URL;
+    }
+    if (ORIGINAL_AUTH_SECRET !== undefined) {
+      process.env.AUTH_SECRET = ORIGINAL_AUTH_SECRET;
+    } else {
+      delete process.env.AUTH_SECRET;
+    }
+    if (ORIGINAL_NEXTAUTH_SECRET !== undefined) {
+      process.env.NEXTAUTH_SECRET = ORIGINAL_NEXTAUTH_SECRET;
+    } else {
+      delete process.env.NEXTAUTH_SECRET;
+    }
+  });
+
+  it('returns a friendly error when automatic sign-in after registration fails due to configuration issues', async () => {
+    const formData = new FormData();
+    formData.set('name', 'Example User');
+    formData.set('email', 'user@example.com');
+    formData.set('password', 'password123');
+
+    const result = await registerAction({}, formData);
+
+    expect(result).toEqual({
+      error: 'Authentication is not configured. Please try again later.',
+    });
+    expect(signInMock).toHaveBeenCalledWith('credentials', {
+      email: 'user@example.com',
+      password: 'password123',
+      redirectTo: '/',
+      redirect: false,
+    });
+  });
+
+  it('returns a friendly error when login fails due to configuration issues', async () => {
+    const formData = new FormData();
+    formData.set('email', 'user@example.com');
+    formData.set('password', 'password123');
+
+    const result = await loginAction({}, formData);
+
+    expect(result).toEqual({
+      error: 'Authentication is not configured. Please try again later.',
+    });
+  });
+});
