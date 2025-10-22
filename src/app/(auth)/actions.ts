@@ -42,6 +42,8 @@ const AUTH_NOT_CONFIGURED: ActionResult = {
   error: 'Authentication is not configured. Please try again later.',
 };
 
+type SignInResult = Awaited<ReturnType<typeof signIn>>;
+
 type AuthLikeError = Error & { type?: string };
 
 const CLIENT_SAFE_AUTH_ERROR_TYPES = new Set([
@@ -80,22 +82,82 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
   return value;
 }
 
-function extractSignInError(result: unknown): string | undefined {
+function requestOrigin(): string | undefined {
+  const headerList = headers();
+  const forwardedProto = headerList.get('x-forwarded-proto');
+  const forwardedHost = headerList.get('x-forwarded-host');
+  const host = forwardedHost ?? headerList.get('host');
+
+  if (!host) {
+    return undefined;
+  }
+
+  const proto = forwardedProto ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
+
+type SignInOutcome = SignInResult | string | null | undefined;
+
+function getResultUrl(result: SignInOutcome): string | undefined {
   if (!result) {
     return undefined;
   }
 
-  let url: string | undefined;
-
   if (typeof result === 'string') {
-    url = result;
-  } else if (typeof result === 'object' && result) {
-    const candidate = result as { url?: unknown };
-    if (typeof candidate.url === 'string') {
-      url = candidate.url;
+    return result;
+  }
+
+  if (typeof result.url === 'string') {
+    return result.url;
+  }
+
+  return undefined;
+}
+
+function resolveRedirectTarget(result: SignInOutcome, fallback: string): string {
+  const url = getResultUrl(result);
+  if (!url) {
+    return fallback;
+  }
+
+  try {
+    const origin = requestOrigin();
+    if (!origin) {
+      return fallback;
+    }
+
+    const parsed = new URL(url, origin);
+    if (parsed.origin !== origin) {
+      return fallback;
+    }
+
+    if (parsed.pathname.startsWith('/api/auth')) {
+      return fallback;
+    }
+
+    const relative = `${parsed.pathname}${parsed.search}`;
+    return sanitizeCallbackUrl(relative) ?? fallback;
+  } catch {
+    if (url.startsWith('/')) {
+      return sanitizeCallbackUrl(url) ?? fallback;
+    }
+    return fallback;
+  }
+}
+
+function extractSignInError(result: SignInOutcome): string | undefined {
+  if (!result) {
+    return undefined;
+  }
+
+  if (typeof result === 'object' && result && 'error' in result) {
+    const { error } = result as { error?: unknown };
+    if (typeof error === 'string' && error.length > 0) {
+      return error;
     }
   }
 
+  const url = getResultUrl(result);
   if (!url) {
     return undefined;
   }
@@ -195,12 +257,13 @@ export async function registerAction(
         return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
       }
 
-      if (!signInResult || typeof signInResult !== 'string') {
-        console.error('Automatic sign-in did not return a redirect URL after registration.', signInResult);
+      if (!signInResult) {
+        console.error('Automatic sign-in did not return a response after registration.');
         return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
       }
 
-      redirect(callbackUrl);
+      const target = resolveRedirectTarget(signInResult, callbackUrl);
+      redirect(target);
     } catch (error) {
       if (isPrismaSchemaMissingError(error)) {
         console.error('Automatic sign-in failed because the database schema is missing required tables.', error);
@@ -286,7 +349,8 @@ export async function loginAction(
       return { error: 'Unable to sign in. Please try again.' };
     }
 
-    redirect(callbackUrl);
+    const target = resolveRedirectTarget(signInResult, callbackUrl);
+    redirect(target);
   } catch (error) {
     if (isPrismaSchemaMissingError(error)) {
       console.error('Login failed because the database schema is missing required tables.', error);
