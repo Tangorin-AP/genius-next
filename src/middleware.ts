@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-import { ensureAuthSecret, hasAuthSecret } from '@/lib/env';
+import { ensureAuthSecretForRuntime } from '@/lib/env';
 
 const AUTH_ROUTES = ['/login', '/register'];
 const PUBLIC_ROUTES = new Set([...AUTH_ROUTES, '/api/health']);
@@ -20,18 +20,13 @@ export default async function middleware(req: NextRequest) {
   const isPublic = PUBLIC_ROUTES.has(pathname);
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
+  const { secret } = ensureAuthSecretForRuntime();
+
   let token = null;
-  if (hasAuthSecret()) {
-    token = await getToken({ req });
-  } else {
-    try {
-      ensureAuthSecret();
-    } catch (error) {
-      console.warn('Authentication secret is not configured; skipping session token retrieval.');
-    }
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('Authentication secret is not configured; skipping session token retrieval.');
-    }
+  try {
+    token = await getToken({ req, secret });
+  } catch (error) {
+    console.error('Failed to read authentication session token.', error);
   }
 
   const tokenId = typeof token?.id === 'string' ? token.id : typeof token?.sub === 'string' ? token.sub : undefined;
