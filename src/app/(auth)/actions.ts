@@ -183,17 +183,19 @@ function ensureDatabaseConfiguration(): ActionResult | null {
   return null;
 }
 
+let warnedMissingAuthSecret = false;
+
 function ensureAuthConfiguration(): ActionResult | null {
   try {
     const { secret, fromEnv } = ensureAuthSecretForRuntime();
     if (!secret || secret.trim() === '') {
       throw new Error('Authentication secret is empty.');
     }
-    if (!fromEnv) {
-      console.error(
-        'Authentication secret environment variables are not configured. Set AUTH_SECRET or NEXTAUTH_SECRET to enable sign-in.',
+    if (!fromEnv && !warnedMissingAuthSecret) {
+      console.warn(
+        'Authentication secret environment variables are not configured. Using a derived fallback secret for development.',
       );
-      return AUTH_NOT_CONFIGURED;
+      warnedMissingAuthSecret = true;
     }
   } catch (error) {
     console.error(error);
