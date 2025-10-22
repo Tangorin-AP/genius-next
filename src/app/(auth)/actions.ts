@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { signIn } from '@/auth';
 import { prisma, prismaReady } from '@/lib/prisma';
-import { assertDatabaseUrl, ensureAuthSecret, hasAuthSecret, isUsingFallbackDatabaseUrl } from '@/lib/env';
+import { assertDatabaseUrl, ensureAuthSecret, isUsingFallbackDatabaseUrl } from '@/lib/env';
 import { consumeRateLimit, remainingMs } from '@/lib/rateLimit';
 
 const registerSchema = z.object({
@@ -73,13 +73,12 @@ function ensureDatabaseConfiguration(): ActionResult | null {
 
 function ensureAuthConfiguration(): ActionResult | null {
   try {
-    ensureAuthSecret();
+    const secret = ensureAuthSecret();
+    if (!secret || secret.trim() === '') {
+      throw new Error('Authentication secret is empty.');
+    }
   } catch (error) {
     console.error(error);
-    return AUTH_NOT_CONFIGURED;
-  }
-
-  if (!hasAuthSecret()) {
     return AUTH_NOT_CONFIGURED;
   }
 

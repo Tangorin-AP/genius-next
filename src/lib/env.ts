@@ -47,10 +47,6 @@ export function assertDatabaseUrl(): string {
   return FALLBACK_DATABASE_URL;
 }
 
-export function hasAuthSecret(): boolean {
-  return readAuthSecretFromEnv() !== null;
-}
-
 export function ensureAuthSecret(): string {
   const secret = readAuthSecretFromEnv();
   if (secret) {
@@ -64,4 +60,13 @@ export function ensureAuthSecret(): string {
   }
 
   return 'development-auth-secret';
+}
+
+export function hasAuthSecret(): boolean {
+  try {
+    const secret = ensureAuthSecret();
+    return secret.trim() !== '';
+  } catch {
+    return false;
+  }
 }
