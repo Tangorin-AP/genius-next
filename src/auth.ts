@@ -1,4 +1,4 @@
-import NextAuth, { getServerSession } from 'next-auth';
+import NextAuth from 'next-auth';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -7,10 +7,7 @@ import { NextRequest } from 'next/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { JWT } from 'next-auth/jwt';
-
 import { prisma, prismaReady } from '@/lib/prisma';
-
-const require = createRequire(import.meta.url);
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -93,6 +90,8 @@ const authConfig = {
   },
 };
 
+type NextAuthRouteParams = { params: { nextauth: string[] } };
+
 type NextAuthRouteHandler = (request: NextRequest, context: NextAuthRouteParams) => Promise<Response>;
 
 type NextAuthHandlers = {
@@ -124,131 +123,48 @@ const modernAuth =
       ? nextAuthResult.auth
       : undefined;
 
-type GetServerSession = typeof import('next-auth/next').getServerSession;
+type GetServerSession = (authOptions: unknown) => Promise<Session | null>;
 
 let cachedGetServerSession: GetServerSession | undefined;
 
-function loadGetServerSession(): GetServerSession {
+function isModuleNotFound(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof (error as { code?: unknown }).code === 'string' &&
+    ((error as { code?: string }).code === 'MODULE_NOT_FOUND' ||
+      (error as { code?: string }).code === 'ERR_MODULE_NOT_FOUND')
+  );
+}
+
+async function loadGetServerSession(): Promise<GetServerSession> {
   if (cachedGetServerSession) return cachedGetServerSession;
 
-  const tryRequire = (loader: () => { getServerSession?: unknown }): GetServerSession | undefined => {
+  const tryImport = async (load: () => Promise<any>) => {
     try {
-      const mod = loader();
+      const mod = (await load()) as { getServerSession?: unknown };
       if (typeof mod.getServerSession === 'function') {
         return mod.getServerSession as GetServerSession;
       }
       return undefined;
     } catch (error) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        typeof (error as { code?: unknown }).code === 'string' &&
-        (error as { code?: string }).code === 'MODULE_NOT_FOUND'
-      ) {
+      if (isModuleNotFound(error)) {
         return undefined;
       }
       throw error;
     }
   };
 
-  const primary = () => require('next-auth') as { getServerSession?: unknown };
-  const fallback = () => require('next-auth/next') as { getServerSession?: unknown };
-
-  cachedGetServerSession = tryRequire(primary) ?? tryRequire(fallback);
+  cachedGetServerSession =
+    (await tryImport(() => import('next-auth/next')))
+      ?? (await tryImport(() => import('next-auth')));
 
   if (!cachedGetServerSession) {
     throw new Error('getServerSession is not available in the installed version of next-auth.');
   }
 
   return cachedGetServerSession;
-}
-
-const createNextAuth: NextAuthFactory =
-  typeof loadedNextAuth === 'function'
-    ? loadedNextAuth
-    : typeof loadedNextAuth?.default === 'function'
-      ? loadedNextAuth.default
-      : ((_options: unknown) => {
-          throw new Error('Failed to load next-auth default export.');
-        }) as NextAuthFactory;
-
-const initialGetServerSession = (() => {
-  if (typeof loadedNextAuth === 'function') {
-    const candidate = (loadedNextAuth as NextAuthFactory & { getServerSession?: unknown }).getServerSession;
-    if (typeof candidate === 'function') {
-      return candidate as GetServerSession;
-    }
-    return undefined;
-  }
-
-  if (loadedNextAuth && typeof loadedNextAuth.getServerSession === 'function') {
-    return loadedNextAuth.getServerSession as GetServerSession;
-  }
-
-  return undefined;
-})();
-
-const nextAuthResult = createNextAuth(authConfig as any) as NextAuthReturn;
-
-const handlers: NextAuthHandlers =
-  typeof nextAuthResult === 'function'
-    ? {
-        GET: (request, context) => nextAuthResult(request, context as any),
-        POST: (request, context) => nextAuthResult(request, context as any),
-      }
-    : nextAuthResult.handlers;
-
-const modernAuth =
-  typeof nextAuthResult === 'function'
-    ? undefined
-    : typeof nextAuthResult.auth === 'function'
-      ? nextAuthResult.auth
-      : undefined;
-
-let cachedGetServerSession: GetServerSession | undefined = initialGetServerSession;
-
-function loadGetServerSession(): GetServerSession {
-  if (cachedGetServerSession) return cachedGetServerSession;
-
-  const tryRequire = (loader: () => { getServerSession?: unknown }): GetServerSession | undefined => {
-    try {
-      const mod = loader();
-      if (typeof mod.getServerSession === 'function') {
-        return mod.getServerSession as GetServerSession;
-      }
-      return undefined;
-    } catch (error) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        typeof (error as { code?: unknown }).code === 'string' &&
-        (error as { code?: string }).code === 'MODULE_NOT_FOUND'
-      ) {
-        return undefined;
-      }
-      throw error;
-    }
-  };
-
-  const loaders = [
-    () =>
-      (typeof loadedNextAuth === 'function'
-        ? (loadedNextAuth as NextAuthFactory & { getServerSession?: unknown })
-        : (loadedNextAuth ?? {})) as { getServerSession?: unknown },
-    () => require('next-auth/next') as { getServerSession?: unknown },
-  ];
-
-  for (const loader of loaders) {
-    const resolved = tryRequire(loader);
-    if (resolved) {
-      cachedGetServerSession = resolved;
-      return cachedGetServerSession;
-    }
-  }
-
-  throw new Error('getServerSession is not available in the installed version of next-auth.');
 }
 
 export async function GET(request: NextRequest, context: NextAuthRouteParams) {
@@ -259,12 +175,13 @@ export async function POST(request: NextRequest, context: NextAuthRouteParams) {
   return handlers.POST(request, context as any);
 }
 
-export function auth() {
+export async function auth() {
   if (modernAuth) {
     return modernAuth();
   }
 
-  return loadGetServerSession()(authConfig);
+  const getSession = await loadGetServerSession();
+  return getSession(authConfig);
 }
 
 function baseUrl(): string {
