@@ -1,5 +1,17 @@
 export const FALLBACK_DATABASE_URL = 'file:./dev.db';
 
+function readAuthSecretFromEnv(): string | null {
+  const candidates = [process.env.AUTH_SECRET, process.env.NEXTAUTH_SECRET];
+  for (const value of candidates) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed !== '') {
+      return trimmed;
+    }
+  }
+  return null;
+}
+
 function readDatabaseUrlFromEnv(): string | null {
   const value = process.env.DATABASE_URL;
   if (typeof value !== 'string') return null;
@@ -33,4 +45,23 @@ export function assertDatabaseUrl(): string {
   }
 
   return FALLBACK_DATABASE_URL;
+}
+
+export function hasAuthSecret(): boolean {
+  return readAuthSecretFromEnv() !== null;
+}
+
+export function ensureAuthSecret(): string {
+  const secret = readAuthSecretFromEnv();
+  if (secret) {
+    return secret;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'AUTH_SECRET or NEXTAUTH_SECRET is required in production. Set one of these environment variables to a secure random value.',
+    );
+  }
+
+  return 'development-auth-secret';
 }
