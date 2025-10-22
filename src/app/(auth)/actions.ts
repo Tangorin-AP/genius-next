@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { signIn } from '@/auth';
 import { prisma, prismaReady } from '@/lib/prisma';
 import { assertDatabaseUrl, ensureAuthSecret, isUsingFallbackDatabaseUrl } from '@/lib/env';
+import { isPrismaSchemaMissingError } from '@/lib/prisma-errors';
 import { consumeRateLimit, remainingMs } from '@/lib/rateLimit';
 
 const registerSchema = z.object({
@@ -89,54 +90,66 @@ export async function registerAction(
   _prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const dbError = ensureDatabaseConfiguration();
-  if (dbError) {
-    return dbError;
-  }
-  const authError = ensureAuthConfiguration();
-  if (authError) {
-    return authError;
-  }
-  const key = clientKey('register');
-  if (!consumeRateLimit(key, 5, 60_000)) {
-    const wait = Math.ceil(remainingMs(key) / 1000);
-    return { error: `Too many attempts. Try again in ${wait} seconds.` };
-  }
-
-  const raw = {
-    name: String(formData.get('name') ?? ''),
-    email: String(formData.get('email') ?? ''),
-    password: String(formData.get('password') ?? ''),
-  };
-
-  const parsed = registerSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
-  }
-
-  const { name, email, password } = parsed.data;
-
-  await prismaReady();
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    return { error: 'An account with that email already exists.' };
-  }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-  await prisma.user.create({ data: { name, email, passwordHash } });
-
-  const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
   try {
-    await signIn('credentials', { email, password, redirectTo: callbackUrl });
+    const dbError = ensureDatabaseConfiguration();
+    if (dbError) {
+      return dbError;
+    }
+    const authError = ensureAuthConfiguration();
+    if (authError) {
+      return authError;
+    }
+    const key = clientKey('register');
+    if (!consumeRateLimit(key, 5, 60_000)) {
+      const wait = Math.ceil(remainingMs(key) / 1000);
+      return { error: `Too many attempts. Try again in ${wait} seconds.` };
+    }
+
+    const raw = {
+      name: String(formData.get('name') ?? ''),
+      email: String(formData.get('email') ?? ''),
+      password: String(formData.get('password') ?? ''),
+    };
+
+    const parsed = registerSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
+    }
+
+    const { name, email, password } = parsed.data;
+
+    await prismaReady();
+
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return { error: 'An account with that email already exists.' };
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await prisma.user.create({ data: { name, email, passwordHash } });
+
+    const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
+    try {
+      await signIn('credentials', { email, password, redirectTo: callbackUrl });
+    } catch (error) {
+      if (isPrismaSchemaMissingError(error)) {
+        console.error('Automatic sign-in failed because the database schema is missing required tables.', error);
+        return DATABASE_NOT_CONFIGURED;
+      }
+      if (isCredentialsSigninError(error)) {
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
+      throw error;
+    }
+
+    return {};
   } catch (error) {
-    if (isCredentialsSigninError(error)) {
-      return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+    if (isPrismaSchemaMissingError(error)) {
+      console.error('Registration failed because the database schema is missing required tables.', error);
+      return DATABASE_NOT_CONFIGURED;
     }
     throw error;
   }
-
-  return {};
 }
 
 export async function loginAction(
@@ -176,6 +189,10 @@ export async function loginAction(
       redirectTo: callbackUrl,
     });
   } catch (error) {
+    if (isPrismaSchemaMissingError(error)) {
+      console.error('Login failed because the database schema is missing required tables.', error);
+      return DATABASE_NOT_CONFIGURED;
+    }
     if (isCredentialsSigninError(error)) {
       return { error: 'Invalid email or password.' };
     }
