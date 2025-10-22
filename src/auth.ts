@@ -7,6 +7,8 @@ import { NextRequest } from 'next/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { JWT } from 'next-auth/jwt';
+import { createRequire } from 'module';
+
 import { prisma, prismaReady } from '@/lib/prisma';
 
 const credentialsSchema = z.object({
@@ -125,7 +127,8 @@ const modernAuth =
 
 type GetServerSession = (authOptions: unknown) => Promise<Session | null>;
 
-let cachedGetServerSession: GetServerSession | undefined;
+let cachedGetServerSession: GetServerSession | undefined =
+  typeof getServerSession === 'function' ? (getServerSession as GetServerSession) : undefined;
 
 function isModuleNotFound(error: unknown): boolean {
   return (
@@ -156,9 +159,12 @@ async function loadGetServerSession(): Promise<GetServerSession> {
     }
   };
 
-  cachedGetServerSession =
-    (await tryImport(() => import('next-auth/next')))
-      ?? (await tryImport(() => import('next-auth')));
+  if (!cachedGetServerSession) {
+    const primary = () => require('next-auth') as { getServerSession?: unknown };
+    const fallback = () => require('next-auth/next') as { getServerSession?: unknown };
+
+    cachedGetServerSession = tryRequire(primary) ?? tryRequire(fallback);
+  }
 
   if (!cachedGetServerSession) {
     throw new Error('getServerSession is not available in the installed version of next-auth.');
