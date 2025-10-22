@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import type { JWT } from 'next-auth/jwt';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { NextRequest } from 'next/server';
@@ -304,13 +305,4 @@ export async function signIn(
   redirect(url);
 }
 
-export async function signOut(): Promise<void> {
-  const response = await callAuthHandler(['signout'], {
-    method: 'POST',
-    headers: new Headers({ 'content-type': 'application/x-www-form-urlencoded' }),
-    body: new URLSearchParams({ json: 'true' }),
-  });
-  const result = await response.json();
-  const url = typeof result?.url === 'string' ? result.url : '/';
-  redirect(url);
-}
+export const { GET, POST } = handlers;
