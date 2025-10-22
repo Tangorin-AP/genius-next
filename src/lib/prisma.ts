@@ -5,7 +5,10 @@ import { ensurePrismaSchema } from './prisma-ensure';
 
 const DEFAULT_DATABASE_URL = 'file:./dev.db';
 
-if (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') {
+if (
+  (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '') &&
+  process.env.NODE_ENV !== 'production'
+) {
   process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
 }
 
