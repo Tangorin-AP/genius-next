@@ -1,5 +1,4 @@
-import { createRequire } from 'node:module';
-
+import NextAuth, { getServerSession } from 'next-auth';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
@@ -12,33 +11,6 @@ import type { JWT } from 'next-auth/jwt';
 import { prisma, prismaReady } from '@/lib/prisma';
 
 const require = createRequire(import.meta.url);
-
-type NextAuthRouteParams = { params: Promise<{ nextauth: string[] }> | { nextauth: string[] } };
-
-type NextAuthRouteHandler = (request: NextRequest, context: NextAuthRouteParams) => Promise<Response>;
-
-type NextAuthHandlers = {
-  GET: NextAuthRouteHandler;
-  POST: NextAuthRouteHandler;
-};
-
-type NextAuthReturn =
-  | NextAuthRouteHandler
-  | {
-      handlers: NextAuthHandlers;
-      auth?: () => Promise<Session | null>;
-    };
-
-type GetServerSession = (...args: unknown[]) => Promise<Session | null>;
-
-type NextAuthFactory = (options: unknown) => NextAuthReturn;
-
-type NextAuthModule = {
-  default?: NextAuthFactory;
-  handlers?: NextAuthHandlers;
-  auth?: () => Promise<Session | null>;
-  getServerSession?: unknown;
-};
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -121,7 +93,76 @@ const authConfig = {
   },
 };
 
-const loadedNextAuth = require('next-auth') as NextAuthModule | NextAuthFactory;
+type NextAuthRouteHandler = (request: NextRequest, context: NextAuthRouteParams) => Promise<Response>;
+
+type NextAuthHandlers = {
+  GET: NextAuthRouteHandler;
+  POST: NextAuthRouteHandler;
+};
+
+type NextAuthReturn =
+  | NextAuthRouteHandler
+  | {
+      handlers: NextAuthHandlers;
+      auth?: () => Promise<Session | null>;
+    };
+
+const nextAuthResult = NextAuth(authConfig as any) as NextAuthReturn;
+
+const handlers: NextAuthHandlers =
+  typeof nextAuthResult === 'function'
+    ? {
+        GET: (request, context) => nextAuthResult(request, context as any),
+        POST: (request, context) => nextAuthResult(request, context as any),
+      }
+    : nextAuthResult.handlers;
+
+const modernAuth =
+  typeof nextAuthResult === 'function'
+    ? undefined
+    : typeof nextAuthResult.auth === 'function'
+      ? nextAuthResult.auth
+      : undefined;
+
+type GetServerSession = typeof import('next-auth/next').getServerSession;
+
+let cachedGetServerSession: GetServerSession | undefined;
+
+function loadGetServerSession(): GetServerSession {
+  if (cachedGetServerSession) return cachedGetServerSession;
+
+  const tryRequire = (loader: () => { getServerSession?: unknown }): GetServerSession | undefined => {
+    try {
+      const mod = loader();
+      if (typeof mod.getServerSession === 'function') {
+        return mod.getServerSession as GetServerSession;
+      }
+      return undefined;
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        typeof (error as { code?: unknown }).code === 'string' &&
+        (error as { code?: string }).code === 'MODULE_NOT_FOUND'
+      ) {
+        return undefined;
+      }
+      throw error;
+    }
+  };
+
+  const primary = () => require('next-auth') as { getServerSession?: unknown };
+  const fallback = () => require('next-auth/next') as { getServerSession?: unknown };
+
+  cachedGetServerSession = tryRequire(primary) ?? tryRequire(fallback);
+
+  if (!cachedGetServerSession) {
+    throw new Error('getServerSession is not available in the installed version of next-auth.');
+  }
+
+  return cachedGetServerSession;
+}
 
 const createNextAuth: NextAuthFactory =
   typeof loadedNextAuth === 'function'
