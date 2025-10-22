@@ -108,6 +108,7 @@ function resolveRedirectTarget(result: unknown, fallback: string): string {
     }
   }
 
+  const url = getResultUrl(result);
   if (!url) {
     return fallback;
   }
@@ -295,7 +296,7 @@ export async function registerAction(
         redirect: false,
       });
 
-      const signInError = extractSignInError(signInResult);
+      const signInError = readSignInError(signInResult);
       if (signInError === 'CredentialsSignin') {
         return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
       }
@@ -382,7 +383,7 @@ export async function loginAction(
       redirect: false,
     });
 
-    const signInError = extractSignInError(signInResult);
+    const signInError = readSignInError(signInResult);
     if (signInError === 'CredentialsSignin') {
       return { error: 'Invalid email or password.' };
     }
