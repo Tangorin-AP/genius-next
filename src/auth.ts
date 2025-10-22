@@ -7,8 +7,6 @@ import { z } from 'zod';
 import { NextRequest } from 'next/server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import type { JWT } from 'next-auth/jwt';
-import { createRequire } from 'module';
 
 import { prisma, prismaReady } from '@/lib/prisma';
 
@@ -128,8 +126,7 @@ const modernAuth =
 
 type GetServerSession = (authOptions: unknown) => Promise<Session | null>;
 
-let cachedGetServerSession: GetServerSession | undefined =
-  typeof getServerSession === 'function' ? (getServerSession as GetServerSession) : undefined;
+let cachedGetServerSession: GetServerSession | undefined;
 
 function isModuleNotFound(error: unknown): boolean {
   return (
@@ -161,10 +158,11 @@ async function loadGetServerSession(): Promise<GetServerSession> {
   };
 
   if (!cachedGetServerSession) {
-    const primary = () => require('next-auth') as { getServerSession?: unknown };
-    const fallback = () => require('next-auth/next') as { getServerSession?: unknown };
+    const primary = () => import('next-auth');
+    const fallback = () => import('next-auth/next');
 
-    cachedGetServerSession = tryRequire(primary) ?? tryRequire(fallback);
+    cachedGetServerSession =
+      (await tryImport(primary)) ?? (await tryImport(fallback)) ?? undefined;
   }
 
   if (!cachedGetServerSession) {
@@ -172,14 +170,6 @@ async function loadGetServerSession(): Promise<GetServerSession> {
   }
 
   return cachedGetServerSession;
-}
-
-export async function GET(request: NextRequest, context: NextAuthRouteParams) {
-  return handlers.GET(request, context as any);
-}
-
-export async function POST(request: NextRequest, context: NextAuthRouteParams) {
-  return handlers.POST(request, context as any);
 }
 
 export async function auth() {
