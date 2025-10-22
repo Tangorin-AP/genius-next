@@ -110,22 +110,6 @@ type NextAuthHandlers = {
 
 type SignInMethod = typeof import('next-auth/react')['signIn'];
 
-let cachedReactSignIn: SignInMethod | undefined;
-
-const fallbackSignIn = (async (
-  ...args: Parameters<SignInMethod>
-) => {
-  if (!cachedReactSignIn) {
-    const mod = await import('next-auth/react');
-    if (typeof mod.signIn !== 'function') {
-      throw new Error('next-auth/react does not export a signIn helper.');
-    }
-    cachedReactSignIn = mod.signIn;
-  }
-
-  return cachedReactSignIn(...args) as ReturnType<SignInMethod>;
-}) as SignInMethod;
-
 type NextAuthReturn =
   | NextAuthRouteHandler
   | {
@@ -153,6 +137,10 @@ const normalizedNextAuth: NormalizedNextAuth =
     : nextAuthResult;
 
 const { handlers, auth: modernAuth, signIn: builtinSignIn } = normalizedNextAuth;
+
+if (!builtinSignIn) {
+  throw new Error('signIn helper is not available in the installed version of next-auth.');
+}
 
 type GetServerSession = (authOptions: unknown) => Promise<Session | null>;
 
@@ -212,4 +200,4 @@ export async function auth() {
 }
 
 export const { GET, POST } = handlers;
-export const signIn = builtinSignIn ?? fallbackSignIn;
+export const signIn = builtinSignIn;

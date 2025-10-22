@@ -158,28 +158,7 @@ export async function registerAction(
 
     const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
     try {
-      const signInResult = await signIn('credentials', {
-        email,
-        password,
-        redirectTo: callbackUrl,
-        redirect: false,
-      });
-
-      const signInError = extractSignInError(signInResult);
-      if (signInError === 'CredentialsSignin') {
-        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
-      }
-      if (signInError) {
-        console.error('Unexpected error returned from automatic sign-in after registration.', signInError, signInResult);
-        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
-      }
-
-      if (!signInResult) {
-        console.error('Automatic sign-in did not return a redirect URL after registration.');
-        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
-      }
-
-      redirect(callbackUrl);
+      await signIn('credentials', { email, password, redirectTo: callbackUrl });
     } catch (error) {
       if (isPrismaSchemaMissingError(error)) {
         console.error('Automatic sign-in failed because the database schema is missing required tables.', error);
