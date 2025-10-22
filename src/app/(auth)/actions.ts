@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { signIn } from '@/auth';
 import { prisma, prismaReady } from '@/lib/prisma';
 import { assertDatabaseUrl, ensureAuthSecret, isUsingFallbackDatabaseUrl } from '@/lib/env';
+import { isPrismaSchemaMissingError } from '@/lib/prisma-errors';
 import { consumeRateLimit, remainingMs } from '@/lib/rateLimit';
 
 const registerSchema = z.object({
@@ -62,6 +63,34 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
   return value;
 }
 
+function extractSignInError(result: unknown): string | undefined {
+  if (!result) {
+    return undefined;
+  }
+
+  let url: string | undefined;
+
+  if (typeof result === 'string') {
+    url = result;
+  } else if (typeof result === 'object' && result) {
+    const candidate = result as { url?: unknown };
+    if (typeof candidate.url === 'string') {
+      url = candidate.url;
+    }
+  }
+
+  if (!url) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(url, 'http://localhost:3000');
+    return parsed.searchParams.get('error') ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function ensureDatabaseConfiguration(): ActionResult | null {
   if (process.env.NODE_ENV === 'production' && isUsingFallbackDatabaseUrl()) {
     return DATABASE_NOT_CONFIGURED;
@@ -89,54 +118,87 @@ export async function registerAction(
   _prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const dbError = ensureDatabaseConfiguration();
-  if (dbError) {
-    return dbError;
-  }
-  const authError = ensureAuthConfiguration();
-  if (authError) {
-    return authError;
-  }
-  const key = clientKey('register');
-  if (!consumeRateLimit(key, 5, 60_000)) {
-    const wait = Math.ceil(remainingMs(key) / 1000);
-    return { error: `Too many attempts. Try again in ${wait} seconds.` };
-  }
-
-  const raw = {
-    name: String(formData.get('name') ?? ''),
-    email: String(formData.get('email') ?? ''),
-    password: String(formData.get('password') ?? ''),
-  };
-
-  const parsed = registerSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
-  }
-
-  const { name, email, password } = parsed.data;
-
-  await prismaReady();
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    return { error: 'An account with that email already exists.' };
-  }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-  await prisma.user.create({ data: { name, email, passwordHash } });
-
-  const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
   try {
-    await signIn('credentials', { email, password, redirectTo: callbackUrl });
+    const dbError = ensureDatabaseConfiguration();
+    if (dbError) {
+      return dbError;
+    }
+    const authError = ensureAuthConfiguration();
+    if (authError) {
+      return authError;
+    }
+    const key = clientKey('register');
+    if (!consumeRateLimit(key, 5, 60_000)) {
+      const wait = Math.ceil(remainingMs(key) / 1000);
+      return { error: `Too many attempts. Try again in ${wait} seconds.` };
+    }
+
+    const raw = {
+      name: String(formData.get('name') ?? ''),
+      email: String(formData.get('email') ?? ''),
+      password: String(formData.get('password') ?? ''),
+    };
+
+    const parsed = registerSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
+    }
+
+    const { name, email, password } = parsed.data;
+
+    await prismaReady();
+
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return { error: 'An account with that email already exists.' };
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await prisma.user.create({ data: { name, email, passwordHash } });
+
+    const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
+    try {
+      const signInResult = await signIn('credentials', {
+        email,
+        password,
+        redirectTo: callbackUrl,
+        redirect: false,
+      });
+
+      const signInError = extractSignInError(signInResult);
+      if (signInError === 'CredentialsSignin') {
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
+      if (signInError) {
+        console.error('Unexpected error returned from automatic sign-in after registration.', signInError, signInResult);
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
+
+      if (!signInResult) {
+        console.error('Automatic sign-in did not return a redirect URL after registration.');
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
+
+      redirect(callbackUrl);
+    } catch (error) {
+      if (isPrismaSchemaMissingError(error)) {
+        console.error('Automatic sign-in failed because the database schema is missing required tables.', error);
+        return DATABASE_NOT_CONFIGURED;
+      }
+      if (isCredentialsSigninError(error)) {
+        return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+      }
+      throw error;
+    }
+
+    return {};
   } catch (error) {
-    if (isCredentialsSigninError(error)) {
-      return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
+    if (isPrismaSchemaMissingError(error)) {
+      console.error('Registration failed because the database schema is missing required tables.', error);
+      return DATABASE_NOT_CONFIGURED;
     }
     throw error;
   }
-
-  return {};
 }
 
 export async function loginAction(
@@ -170,12 +232,33 @@ export async function loginAction(
   const callbackUrl = sanitizeCallbackUrl(formData.get('callbackUrl')) ?? '/';
 
   try {
-    await signIn('credentials', {
+    const signInResult = await signIn('credentials', {
       email,
       password,
       redirectTo: callbackUrl,
+      redirect: false,
     });
+
+    const signInError = extractSignInError(signInResult);
+    if (signInError === 'CredentialsSignin') {
+      return { error: 'Invalid email or password.' };
+    }
+    if (signInError) {
+      console.error('Unexpected error returned from sign-in.', signInError, signInResult);
+      return { error: 'Unable to sign in. Please try again.' };
+    }
+
+    if (!signInResult) {
+      console.error('Sign-in did not return a redirect URL.');
+      return { error: 'Unable to sign in. Please try again.' };
+    }
+
+    redirect(callbackUrl);
   } catch (error) {
+    if (isPrismaSchemaMissingError(error)) {
+      console.error('Login failed because the database schema is missing required tables.', error);
+      return DATABASE_NOT_CONFIGURED;
+    }
     if (isCredentialsSigninError(error)) {
       return { error: 'Invalid email or password.' };
     }
