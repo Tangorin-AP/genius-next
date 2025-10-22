@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { signIn } from '@/auth';
 import { prisma, prismaReady } from '@/lib/prisma';
-import { assertDatabaseUrl } from '@/lib/env';
+import { assertDatabaseUrl, isUsingFallbackDatabaseUrl } from '@/lib/env';
 import { consumeRateLimit, remainingMs } from '@/lib/rateLimit';
 
 const registerSchema = z.object({
@@ -29,6 +29,10 @@ const loginSchema = z.object({
 
 type ActionResult = {
   error?: string;
+};
+
+const DATABASE_NOT_CONFIGURED: ActionResult = {
+  error: 'The application database is not configured. Please try again later.',
 };
 
 type AuthLikeError = Error & { type?: string };
@@ -54,11 +58,23 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
   return value;
 }
 
+function ensureDatabaseConfiguration(): ActionResult | null {
+  if (process.env.NODE_ENV === 'production' && isUsingFallbackDatabaseUrl()) {
+    return DATABASE_NOT_CONFIGURED;
+  }
+
+  assertDatabaseUrl();
+  return null;
+}
+
 export async function registerAction(
   _prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  assertDatabaseUrl();
+  const dbError = ensureDatabaseConfiguration();
+  if (dbError) {
+    return dbError;
+  }
   const key = clientKey('register');
   if (!consumeRateLimit(key, 5, 60_000)) {
     const wait = Math.ceil(remainingMs(key) / 1000);
@@ -105,7 +121,10 @@ export async function loginAction(
   _prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  assertDatabaseUrl();
+  const dbError = ensureDatabaseConfiguration();
+  if (dbError) {
+    return dbError;
+  }
   const key = clientKey('login');
   if (!consumeRateLimit(key, 10, 60_000)) {
     const wait = Math.ceil(remainingMs(key) / 1000);
