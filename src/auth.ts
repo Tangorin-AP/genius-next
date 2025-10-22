@@ -7,6 +7,7 @@ import { z } from 'zod';
 import type { NextRequest } from 'next/server';
 
 import { prisma, prismaReady } from '@/lib/prisma';
+import { isPrismaSchemaMissingError } from '@/lib/prisma-errors';
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -34,7 +35,16 @@ const authConfig = {
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
         await prismaReady();
-        const user = await prisma.user.findUnique({ where: { email } });
+        let user: Awaited<ReturnType<typeof prisma.user.findUnique>>;
+        try {
+          user = await prisma.user.findUnique({ where: { email } });
+        } catch (error) {
+          if (isPrismaSchemaMissingError(error)) {
+            console.error('Credentials authorize failed because the database schema is missing required tables.', error);
+            return null;
+          }
+          throw error;
+        }
         if (!user?.passwordHash) return null;
         const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) return null;
