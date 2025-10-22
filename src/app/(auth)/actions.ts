@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { signIn } from '@/auth';
 import { prisma, prismaReady } from '@/lib/prisma';
-import { assertDatabaseUrl, isUsingFallbackDatabaseUrl } from '@/lib/env';
+import { assertDatabaseUrl, ensureAuthSecret, hasAuthSecret, isUsingFallbackDatabaseUrl } from '@/lib/env';
 import { consumeRateLimit, remainingMs } from '@/lib/rateLimit';
 
 const registerSchema = z.object({
@@ -33,6 +33,10 @@ type ActionResult = {
 
 const DATABASE_NOT_CONFIGURED: ActionResult = {
   error: 'The application database is not configured. Please try again later.',
+};
+
+const AUTH_NOT_CONFIGURED: ActionResult = {
+  error: 'Authentication is not configured. Please try again later.',
 };
 
 type AuthLikeError = Error & { type?: string };
@@ -67,6 +71,21 @@ function ensureDatabaseConfiguration(): ActionResult | null {
   return null;
 }
 
+function ensureAuthConfiguration(): ActionResult | null {
+  try {
+    ensureAuthSecret();
+  } catch (error) {
+    console.error(error);
+    return AUTH_NOT_CONFIGURED;
+  }
+
+  if (!hasAuthSecret()) {
+    return AUTH_NOT_CONFIGURED;
+  }
+
+  return null;
+}
+
 export async function registerAction(
   _prevState: ActionResult,
   formData: FormData,
@@ -74,6 +93,10 @@ export async function registerAction(
   const dbError = ensureDatabaseConfiguration();
   if (dbError) {
     return dbError;
+  }
+  const authError = ensureAuthConfiguration();
+  if (authError) {
+    return authError;
   }
   const key = clientKey('register');
   if (!consumeRateLimit(key, 5, 60_000)) {
@@ -124,6 +147,10 @@ export async function loginAction(
   const dbError = ensureDatabaseConfiguration();
   if (dbError) {
     return dbError;
+  }
+  const authError = ensureAuthConfiguration();
+  if (authError) {
+    return authError;
   }
   const key = clientKey('login');
   if (!consumeRateLimit(key, 10, 60_000)) {
