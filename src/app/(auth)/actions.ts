@@ -137,6 +137,7 @@ export async function registerAction(
   _prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
+  'use server';
   try {
     const dbError = ensureDatabaseConfiguration();
     if (dbError) {
@@ -235,6 +236,7 @@ export async function loginAction(
   _prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
+  'use server';
   const dbError = ensureDatabaseConfiguration();
   if (dbError) {
     return dbError;
