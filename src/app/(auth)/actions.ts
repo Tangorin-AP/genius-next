@@ -189,10 +189,11 @@ function ensureAuthConfiguration(): ActionResult | null {
     if (!secret || secret.trim() === '') {
       throw new Error('Authentication secret is empty.');
     }
-    if (!fromEnv && process.env.NODE_ENV === 'production') {
+    if (!fromEnv) {
       console.error(
-        'Authentication secret environment variables are not configured. Using a derived fallback secret until AUTH_SECRET or NEXTAUTH_SECRET is set.',
+        'Authentication secret environment variables are not configured. Set AUTH_SECRET or NEXTAUTH_SECRET to enable sign-in.',
       );
+      return AUTH_NOT_CONFIGURED;
     }
   } catch (error) {
     console.error(error);
