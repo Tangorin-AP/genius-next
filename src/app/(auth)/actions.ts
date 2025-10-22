@@ -96,25 +96,18 @@ function requestOrigin(): string | undefined {
   return `${proto}://${host}`;
 }
 
-type SignInOutcome = SignInResult | string | null | undefined;
-
-function getResultUrl(result: SignInOutcome): string | undefined {
-  if (!result) {
-    return undefined;
-  }
+function resolveRedirectTarget(result: unknown, fallback: string): string {
+  let url: string | undefined;
 
   if (typeof result === 'string') {
-    return result;
+    url = result;
+  } else if (result && typeof result === 'object') {
+    const candidate = result as { url?: unknown };
+    if (typeof candidate.url === 'string') {
+      url = candidate.url;
+    }
   }
 
-  if (typeof result.url === 'string') {
-    return result.url;
-  }
-
-  return undefined;
-}
-
-function safeRedirectTarget(result: SignInOutcome, fallback: string): string {
   const url = getResultUrl(result);
   if (!url) {
     return fallback;
@@ -145,7 +138,65 @@ function safeRedirectTarget(result: SignInOutcome, fallback: string): string {
   }
 }
 
-function readSignInError(result: SignInOutcome): string | undefined {
+function extractSignInError(result: unknown): string | undefined {
+  if (!result) {
+    return undefined;
+  }
+
+  const proto = forwardedProto ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
+
+type SignInOutcome = SignInResult | string | null | undefined;
+
+function getResultUrl(result: SignInOutcome): string | undefined {
+  if (!result) {
+    return undefined;
+  }
+
+  if (typeof result === 'string') {
+    return result;
+  }
+
+  if (typeof result.url === 'string') {
+    return result.url;
+  }
+
+  return undefined;
+}
+
+function resolveRedirectTarget(result: SignInOutcome, fallback: string): string {
+  const url = getResultUrl(result);
+  if (!url) {
+    return fallback;
+  }
+
+  try {
+    const origin = requestOrigin();
+    if (!origin) {
+      return fallback;
+    }
+
+    const parsed = new URL(url, origin);
+    if (parsed.origin !== origin) {
+      return fallback;
+    }
+
+    if (parsed.pathname.startsWith('/api/auth')) {
+      return fallback;
+    }
+
+    const relative = `${parsed.pathname}${parsed.search}`;
+    return sanitizeCallbackUrl(relative) ?? fallback;
+  } catch {
+    if (url.startsWith('/')) {
+      return sanitizeCallbackUrl(url) ?? fallback;
+    }
+    return fallback;
+  }
+}
+
+function extractSignInError(result: SignInOutcome): string | undefined {
   if (!result) {
     return undefined;
   }
@@ -262,7 +313,7 @@ export async function registerAction(
         return { error: 'Registration succeeded but automatic sign-in failed. Please log in.' };
       }
 
-      const target = safeRedirectTarget(signInResult, callbackUrl);
+      const target = resolveRedirectTarget(signInResult, callbackUrl);
       redirect(target);
     } catch (error) {
       if (isPrismaSchemaMissingError(error)) {
@@ -349,7 +400,7 @@ export async function loginAction(
       return { error: 'Unable to sign in. Please try again.' };
     }
 
-    const target = safeRedirectTarget(signInResult, callbackUrl);
+    const target = resolveRedirectTarget(signInResult, callbackUrl);
     redirect(target);
   } catch (error) {
     if (isPrismaSchemaMissingError(error)) {
