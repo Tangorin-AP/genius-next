@@ -6,7 +6,9 @@ import { useFormState, useFormStatus } from 'react-dom';
 
 import { registerAction } from '../actions';
 
-const initialState = { error: undefined as string | undefined };
+type RegisterFormState = { error?: string };
+
+const initialState: RegisterFormState = { error: undefined };
 
 function SubmitButton({ children }: { children: ReactNode }) {
   const { pending } = useFormStatus();
@@ -18,14 +20,17 @@ function SubmitButton({ children }: { children: ReactNode }) {
 }
 
 export default function RegisterForm({ callbackUrl }: { callbackUrl?: string }) {
-  const [state, formAction] = useFormState(registerAction, initialState);
+  const [state, formAction] = useFormState(async (_state: RegisterFormState, formData: FormData) => {
+    const result = await registerAction(formData);
+    return result ?? { error: undefined };
+  }, initialState);
 
   return (
     <form action={formAction} className="auth-card__form">
       {callbackUrl ? <input type="hidden" name="callbackUrl" value={callbackUrl} /> : null}
       <label className="auth-card__field">
         <span className="auth-card__label">Name</span>
-        <input type="text" name="name" autoComplete="name" required minLength={2} />
+        <input type="text" name="name" autoComplete="name" minLength={2} />
       </label>
       <label className="auth-card__field">
         <span className="auth-card__label">Email</span>

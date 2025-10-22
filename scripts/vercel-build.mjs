@@ -42,15 +42,9 @@ async function main() {
     ]);
 
     if (!migrate.ok) {
-      const allowFailure = process.env.ALLOW_MIGRATION_FAILURE === 'true';
-
-      if (allowFailure) {
-        console.warn('⚠️  Prisma migrate deploy failed but ALLOW_MIGRATION_FAILURE=true; continuing anyway.');
-      } else {
-        console.error('❌ Prisma migrate deploy failed; aborting build.');
-        console.error('   Ensure `npx prisma migrate deploy --schema=./prisma/schema.prisma` succeeds before building.');
-        process.exit(migrate.code ?? 1);
-      }
+      console.error('❌ Prisma migrate deploy failed; aborting build.');
+      console.error('   Ensure `npx prisma migrate deploy --schema=./prisma/schema.prisma` succeeds before building.');
+      process.exit(migrate.code ?? 1);
     }
   } else {
     console.log('DATABASE_URL not set; skipping Prisma migrate deploy.');

@@ -1,317 +1,121 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('next-auth', () => {
-  class MockAuthError extends Error {
-    static type = 'AuthError';
-    type: string;
-
-    constructor(message?: string) {
-      super(message);
-      this.name = 'AuthError';
-      this.type = (this.constructor as typeof MockAuthError).type;
-    }
-  }
-
-  return { AuthError: MockAuthError };
-});
-
-const { AuthError } = await import('next-auth');
-
-import * as env from '@/lib/env';
-
-const prismaUser = {
-  create: vi.fn(),
-};
-
-const findUserByEmailInsensitiveMock = vi.fn();
-
-const consumeRateLimitMock = vi.fn(() => true);
-const remainingMsMock = vi.fn(() => 0);
-const signInMock = vi.fn();
-const headersMock = vi.fn(() => ({
-  get: () => null,
-}));
+const findUniqueMock = vi.fn();
+const createMock = vi.fn();
+const hashMock = vi.fn(async () => 'hashed-password');
+const signInMock = vi.fn(async () => ({ error: undefined }));
 const redirectMock = vi.fn();
-const bcryptHashMock = vi.fn(async () => 'hashed');
-
-const prismaReadyMock = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    user: prismaUser,
+    user: {
+      findUnique: findUniqueMock,
+      create: createMock,
+    },
   },
-  prismaReady: prismaReadyMock,
 }));
 
-vi.mock('@/lib/user-queries', () => ({
-  findUserByEmailInsensitive: findUserByEmailInsensitiveMock,
-}));
-
-vi.mock('@/lib/rateLimit', () => ({
-  consumeRateLimit: consumeRateLimitMock,
-  remainingMs: remainingMsMock,
+vi.mock('bcryptjs', () => ({
+  default: {
+    hash: hashMock,
+  },
 }));
 
 vi.mock('@/auth', () => ({
   signIn: signInMock,
 }));
 
-vi.mock('next/headers', () => ({
-  headers: headersMock,
-}));
-
 vi.mock('next/navigation', () => ({
   redirect: redirectMock,
 }));
 
-vi.mock('bcryptjs', () => ({
-  default: {
-    hash: bcryptHashMock,
-  },
-}));
+const { registerAction } = await import('../actions');
 
-class TestMissingSecretError extends AuthError {
-  static type = 'MissingSecret';
-}
-
-class TestAccessDeniedError extends AuthError {
-  static type = 'AccessDenied';
-}
-
-const { loginAction, registerAction } = await import('../actions');
-
-const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
-const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
-const ORIGINAL_AUTH_SECRET = process.env.AUTH_SECRET;
-const ORIGINAL_NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
-
-describe('auth actions database configuration', () => {
+describe('registerAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.DATABASE_URL;
-    process.env.NODE_ENV = 'production';
-    delete process.env.AUTH_SECRET;
-    delete process.env.NEXTAUTH_SECRET;
+    signInMock.mockResolvedValue({ error: undefined });
   });
 
-  afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
-    if (ORIGINAL_DATABASE_URL !== undefined) {
-      process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
-    } else {
-      delete process.env.DATABASE_URL;
-    }
-    if (ORIGINAL_AUTH_SECRET !== undefined) {
-      process.env.AUTH_SECRET = ORIGINAL_AUTH_SECRET;
-    } else {
-      delete process.env.AUTH_SECRET;
-    }
-    if (ORIGINAL_NEXTAUTH_SECRET !== undefined) {
-      process.env.NEXTAUTH_SECRET = ORIGINAL_NEXTAUTH_SECRET;
-    } else {
-      delete process.env.NEXTAUTH_SECRET;
-    }
+  it('returns an error when email or password is missing', async () => {
+    const formData = new FormData();
+    formData.set('email', '');
+    formData.set('password', '');
+
+    const result = await registerAction(formData);
+
+    expect(result).toEqual({ error: 'Email and password are required.' });
+    expect(findUniqueMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
+    expect(signInMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it('returns a friendly error when the database is not configured', async () => {
-    const assertSpy = vi.spyOn(env, 'assertDatabaseUrl');
+  it('returns an error when the email is already registered', async () => {
+    findUniqueMock.mockResolvedValueOnce({ id: 'user-id', email: 'user@example.com', passwordHash: 'hash' });
+
+    const formData = new FormData();
+    formData.set('email', 'user@example.com');
+    formData.set('password', 'password123');
+
+    const result = await registerAction(formData);
+
+    expect(result).toEqual({ error: 'An account with that email already exists.' });
+    expect(createMock).not.toHaveBeenCalled();
+    expect(signInMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it('creates the user, signs in, and redirects on success', async () => {
+    findUniqueMock.mockResolvedValueOnce(null);
 
     const formData = new FormData();
     formData.set('name', 'Example User');
-    formData.set('email', 'user@example.com');
+    formData.set('email', 'User@Example.com');
     formData.set('password', 'password123');
+    formData.set('callbackUrl', '/dashboard');
 
-    const result = await registerAction({}, formData);
+    await registerAction(formData);
 
-    expect(result).toEqual({
-      error: 'The application database is not configured. Please try again later.',
-    });
-    expect(assertSpy).not.toHaveBeenCalled();
-    expect(consumeRateLimitMock).not.toHaveBeenCalled();
-    expect(findUserByEmailInsensitiveMock).not.toHaveBeenCalled();
-    expect(prismaUser.create).not.toHaveBeenCalled();
-
-    assertSpy.mockRestore();
-  });
-});
-
-describe('auth actions authentication configuration', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    process.env.NODE_ENV = 'production';
-    process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/db';
-    delete process.env.AUTH_SECRET;
-    delete process.env.NEXTAUTH_SECRET;
-  });
-
-  afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
-    if (ORIGINAL_DATABASE_URL !== undefined) {
-      process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
-    } else {
-      delete process.env.DATABASE_URL;
-    }
-    if (ORIGINAL_AUTH_SECRET !== undefined) {
-      process.env.AUTH_SECRET = ORIGINAL_AUTH_SECRET;
-    } else {
-      delete process.env.AUTH_SECRET;
-    }
-    if (ORIGINAL_NEXTAUTH_SECRET !== undefined) {
-      process.env.NEXTAUTH_SECRET = ORIGINAL_NEXTAUTH_SECRET;
-    } else {
-      delete process.env.NEXTAUTH_SECRET;
-    }
-  });
-
-  it('attempts to sign in using the derived secret when authentication env vars are missing', async () => {
-    const formData = new FormData();
-    formData.set('email', 'user@example.com');
-    formData.set('password', 'password123');
-
-    signInMock.mockResolvedValueOnce(undefined);
-
-    const result = await loginAction({}, formData);
-
-    expect(result).toEqual({
-      error: 'Unable to sign in. Please try again.',
-    });
-    expect(signInMock).toHaveBeenCalledTimes(1);
-    expect(consumeRateLimitMock).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('auth actions sign-in configuration errors', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    process.env.NODE_ENV = 'production';
-    process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/db';
-    process.env.AUTH_SECRET = 'test-secret';
-    findUserByEmailInsensitiveMock.mockResolvedValue(null as any);
-    prismaUser.create.mockResolvedValue({} as any);
-    signInMock.mockResolvedValue('http://localhost:3000/api/auth/callback/credentials?error=Configuration');
-  });
-
-  afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
-    if (ORIGINAL_DATABASE_URL !== undefined) {
-      process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
-    } else {
-      delete process.env.DATABASE_URL;
-    }
-    if (ORIGINAL_AUTH_SECRET !== undefined) {
-      process.env.AUTH_SECRET = ORIGINAL_AUTH_SECRET;
-    } else {
-      delete process.env.AUTH_SECRET;
-    }
-    if (ORIGINAL_NEXTAUTH_SECRET !== undefined) {
-      process.env.NEXTAUTH_SECRET = ORIGINAL_NEXTAUTH_SECRET;
-    } else {
-      delete process.env.NEXTAUTH_SECRET;
-    }
-  });
-
-  it('returns a friendly error when automatic sign-in after registration fails due to configuration issues', async () => {
-    const formData = new FormData();
-    formData.set('name', 'Example User');
-    formData.set('email', 'user@example.com');
-    formData.set('password', 'password123');
-
-    const result = await registerAction({}, formData);
-
-    expect(result).toEqual({
-      error: 'Authentication is not configured. Please try again later.',
+    expect(hashMock).toHaveBeenCalledWith('password123', 12);
+    expect(createMock).toHaveBeenCalledWith({
+      data: {
+        email: 'user@example.com',
+        name: 'Example User',
+        passwordHash: 'hashed-password',
+      },
     });
     expect(signInMock).toHaveBeenCalledWith('credentials', {
       email: 'user@example.com',
       password: 'password123',
-      redirectTo: '/',
       redirect: false,
     });
+    expect(redirectMock).toHaveBeenCalledWith('/dashboard');
   });
 
-  it('returns a friendly error when login fails due to configuration issues', async () => {
-    const formData = new FormData();
-    formData.set('email', 'user@example.com');
-    formData.set('password', 'password123');
-
-    const result = await loginAction({}, formData);
-
-    expect(result).toEqual({
-      error: 'Authentication is not configured. Please try again later.',
-    });
-  });
-});
-
-describe('auth actions sign-in thrown auth errors', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    process.env.NODE_ENV = 'production';
-    process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/db';
-    process.env.AUTH_SECRET = 'test-secret';
-    findUserByEmailInsensitiveMock.mockResolvedValue(null as any);
-    prismaUser.create.mockResolvedValue({} as any);
-  });
-
-  afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
-    if (ORIGINAL_DATABASE_URL !== undefined) {
-      process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
-    } else {
-      delete process.env.DATABASE_URL;
-    }
-    if (ORIGINAL_AUTH_SECRET !== undefined) {
-      process.env.AUTH_SECRET = ORIGINAL_AUTH_SECRET;
-    } else {
-      delete process.env.AUTH_SECRET;
-    }
-    if (ORIGINAL_NEXTAUTH_SECRET !== undefined) {
-      process.env.NEXTAUTH_SECRET = ORIGINAL_NEXTAUTH_SECRET;
-    } else {
-      delete process.env.NEXTAUTH_SECRET;
-    }
-  });
-
-  it('returns authentication configuration error when automatic sign-in throws configuration AuthError', async () => {
-    signInMock.mockRejectedValue(new TestMissingSecretError('Missing secret'));
-
-    const formData = new FormData();
-    formData.set('name', 'Example User');
-    formData.set('email', 'user@example.com');
-    formData.set('password', 'password123');
-
-    const result = await registerAction({}, formData);
-
-    expect(result).toEqual({
-      error: 'Authentication is not configured. Please try again later.',
-    });
-  });
-
-  it('returns a friendly message when automatic sign-in throws non-credential AuthError', async () => {
-    signInMock.mockRejectedValue(new TestAccessDeniedError('Access denied'));
-
-    const formData = new FormData();
-    formData.set('name', 'Example User');
-    formData.set('email', 'user@example.com');
-    formData.set('password', 'password123');
-
-    const result = await registerAction({}, formData);
-
-    expect(result).toEqual({
-      error: 'Registration succeeded but automatic sign-in failed. Please log in.',
-    });
-  });
-
-  it('returns a friendly message when sign-in throws non-credential AuthError during login', async () => {
-    signInMock.mockRejectedValue(new TestAccessDeniedError('Access denied'));
+  it('redirects to the homepage when no callback is provided', async () => {
+    findUniqueMock.mockResolvedValueOnce(null);
 
     const formData = new FormData();
     formData.set('email', 'user@example.com');
     formData.set('password', 'password123');
 
-    const result = await loginAction({}, formData);
+    await registerAction(formData);
 
-    expect(result).toEqual({
-      error: 'Unable to sign in. Please try again.',
-    });
+    expect(redirectMock).toHaveBeenCalledWith('/');
+  });
+
+  it('returns an error if signing in after registration fails', async () => {
+    findUniqueMock.mockResolvedValueOnce(null);
+    signInMock.mockResolvedValueOnce({ error: 'CredentialsSignin' });
+
+    const formData = new FormData();
+    formData.set('email', 'user@example.com');
+    formData.set('password', 'password123');
+
+    const result = await registerAction(formData);
+
+    expect(result).toEqual({ error: 'Registration succeeded, but signing in failed. Please sign in manually.' });
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });
