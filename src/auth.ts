@@ -1,14 +1,34 @@
 import NextAuth from 'next-auth';
-import type { NextAuthConfig } from 'next-auth';
+import type { NextAuthOptions } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 
 import { prisma } from '@/lib/prisma';
 
-const authConfig: NextAuthConfig = {
-  debug: true,
+const authConfig: NextAuthOptions = {
+  debug: process.env.NODE_ENV === 'development',
   trustHost: true,
   session: { strategy: 'jwt' },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.id = user.id;
+      }
+
+      if (typeof token.sub === 'string' && !token.id) {
+        token.id = token.sub;
+      }
+
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token?.id) {
+        session.user.id = String(token.id);
+      }
+
+      return session;
+    },
+  },
   providers: [
     Credentials({
       name: 'Credentials',
