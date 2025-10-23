@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
-import type { NextAuthOptions } from 'next-auth';
+import type { NextAuthConfig, Session } from 'next-auth';
+import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 
@@ -10,18 +11,31 @@ const authConfig: NextAuthConfig = {
   trustHost: true,
   session: { strategy: 'jwt' },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({
+      token,
+      user,
+    }: {
+      token: JWT & { id?: string };
+      user?: { id?: string | null } | null;
+    }) {
       if (user?.id) {
         token.id = user.id;
       }
 
-      if (typeof token.sub === 'string' && !token.id) {
-        token.id = token.sub;
+      const subject = (token as { sub?: unknown }).sub;
+      if (typeof subject === 'string' && !token.id) {
+        token.id = subject;
       }
 
       return token;
     },
-    async session({ session, token }) {
+    async session({
+      session,
+      token,
+    }: {
+      session: Session;
+      token: JWT & { id?: string };
+    }) {
       if (session.user && token?.id) {
         session.user.id = String(token.id);
       }

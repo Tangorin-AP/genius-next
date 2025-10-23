@@ -1,14 +1,13 @@
+import type { DefaultSession, DefaultUser } from 'next-auth';
+
 declare module 'next-auth' {
-  interface Session {
-    user: {
+  interface Session extends DefaultSession {
+    user: NonNullable<DefaultSession['user']> & {
       id: string;
-      name?: string | null;
-      email?: string | null;
-      image?: string | null;
     };
   }
 
-  interface User {
+  interface User extends DefaultUser {
     passwordHash?: string | null;
   }
 }
