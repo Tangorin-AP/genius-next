@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const prismaReadyMock = vi.fn(async () => {});
 const findUniqueMock = vi.fn();
 const createMock = vi.fn();
 const hashMock = vi.fn(async () => 'hashed-password');
@@ -7,6 +8,7 @@ const signInMock = vi.fn(async () => ({ error: undefined }));
 const redirectMock = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
+  prismaReady: prismaReadyMock,
   prisma: {
     user: {
       findUnique: findUniqueMock,
@@ -45,6 +47,7 @@ describe('registerAction', () => {
     const result = await registerAction(formData);
 
     expect(result).toEqual({ error: 'Email and password are required.' });
+    expect(prismaReadyMock).toHaveBeenCalled();
     expect(findUniqueMock).not.toHaveBeenCalled();
     expect(createMock).not.toHaveBeenCalled();
     expect(signInMock).not.toHaveBeenCalled();
@@ -61,6 +64,7 @@ describe('registerAction', () => {
     const result = await registerAction(formData);
 
     expect(result).toEqual({ error: 'An account with that email already exists.' });
+    expect(prismaReadyMock).toHaveBeenCalled();
     expect(createMock).not.toHaveBeenCalled();
     expect(signInMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
@@ -77,6 +81,7 @@ describe('registerAction', () => {
 
     await registerAction(formData);
 
+    expect(prismaReadyMock).toHaveBeenCalled();
     expect(hashMock).toHaveBeenCalledWith('password123', 12);
     expect(createMock).toHaveBeenCalledWith({
       data: {
@@ -102,6 +107,7 @@ describe('registerAction', () => {
 
     await registerAction(formData);
 
+    expect(prismaReadyMock).toHaveBeenCalled();
     expect(redirectMock).toHaveBeenCalledWith('/');
   });
 
@@ -116,6 +122,7 @@ describe('registerAction', () => {
     const result = await registerAction(formData);
 
     expect(result).toEqual({ error: 'Registration succeeded, but signing in failed. Please sign in manually.' });
+    expect(prismaReadyMock).toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
   });
 });

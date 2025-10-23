@@ -4,7 +4,7 @@ import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 
 const authConfig: NextAuthConfig = {
   debug: process.env.NODE_ENV === 'development',
@@ -51,6 +51,7 @@ const authConfig: NextAuthConfig = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        await prismaReady();
         const email = typeof credentials?.email === 'string' ? credentials.email.trim() : '';
         const password = typeof credentials?.password === 'string' ? credentials.password : '';
 

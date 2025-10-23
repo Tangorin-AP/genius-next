@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 
 import { signIn } from '@/auth';
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaReady } from '@/lib/prisma';
 
 type RegisterActionState = { error?: string };
 
@@ -15,6 +15,7 @@ function sanitizeCallbackUrl(value: FormDataEntryValue | null): string | undefin
 }
 
 export async function registerAction(formData: FormData): Promise<RegisterActionState | void> {
+  await prismaReady();
   const emailValue = formData.get('email');
   const rawEmail = typeof emailValue === 'string' ? emailValue.trim() : '';
   const email = rawEmail.toLowerCase();
