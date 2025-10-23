@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 
 const authConfig: NextAuthConfig = {
-  debug: true,
+  debug: process.env.NODE_ENV === 'development',
   trustHost: true,
   session: { strategy: 'jwt' },
   providers: [
