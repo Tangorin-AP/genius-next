@@ -8,10 +8,10 @@ async function deriveFallbackSecret(overrides: Record<string, string | undefined
     'AUTH_SECRET',
     'NEXTAUTH_SECRET',
     'AUTH_SECRET_SEED',
-    'VERCEL_PROJECT_ID',
     'NEXT_PUBLIC_VERCEL_URL',
     'NEXTAUTH_URL',
     'VERCEL_URL',
+    'VERCEL_PROJECT_ID',
   ]) {
     delete envCopy[key];
   }
@@ -53,4 +53,11 @@ test('normalizes case, scheme, and trailing slash differences for deployment URL
   });
 
   expect(httpsSecret).toBe(httpSecret);
+});
+
+test('ignores VERCEL_PROJECT_ID so the fallback secret matches across runtimes', async () => {
+  const withProjectId = await deriveFallbackSecret({ VERCEL_PROJECT_ID: 'proj_123' });
+  const withoutProjectId = await deriveFallbackSecret({});
+
+  expect(withProjectId).toBe(withoutProjectId);
 });

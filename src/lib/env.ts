@@ -71,7 +71,6 @@ function deriveFallbackAuthSecret(): string {
 
   const projectIdentifier =
     trimmed(process.env.AUTH_SECRET_SEED) ??
-    trimmed(process.env.VERCEL_PROJECT_ID) ??
     normalizeDeploymentIdentifier(process.env.NEXT_PUBLIC_VERCEL_URL) ??
     normalizeDeploymentIdentifier(process.env.NEXTAUTH_URL) ??
     normalizeDeploymentIdentifier(process.env.VERCEL_URL) ??
