@@ -1,16 +1,27 @@
-// STUB to prove this file is wired
+// Use RELATIVE import to avoid "@/..." alias issues in the API route bundler
+import { handlers } from "../../../../auth";
 export const runtime = "nodejs";
 
-export async function GET() {
-  return new Response(JSON.stringify({ ok: true, route: "auth-stub" }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
-}
+export const GET = async (req: Request, ctx: unknown) => {
+  try {
+    return await handlers.GET(req, ctx as any);
+  } catch (e: any) {
+    console.error("[auth][GET] error:", e);
+    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }
+};
 
-export async function POST() {
-  return new Response(JSON.stringify({ ok: true, route: "auth-stub-post" }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
-}
+export const POST = async (req: Request, ctx: unknown) => {
+  try {
+    return await handlers.POST(req, ctx as any);
+  } catch (e: any) {
+    console.error("[auth][POST] error:", e);
+    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }
+};
