@@ -19,3 +19,22 @@ export default function LoginPage() {
     </main>
   );
 }
+
+// src/app/(auth)/login/page.tsx
+import { signIn } from "@/auth";
+
+export default function LoginPage() {
+  async function login(formData: FormData) {
+    "use server";
+    // Send them straight to your study page after success
+    await signIn("credentials", formData, { redirectTo: "/study" });
+  }
+
+  return (
+    <form action={login}>
+      <input name="email" type="email" required />
+      <input name="password" type="password" required />
+      <button type="submit">Sign in</button>
+    </form>
+  );
+}
