@@ -4,5 +4,6 @@ import { handlers } from '@/auth';
 
 export const runtime = 'nodejs';
 
-// Wire the handlers exported by src/auth.ts (v5 style)
-export { GET, POST } from '@/auth';
+// re-export handlers from your central auth file
+export { GET, POST } from "@/auth";
+export const runtime = "nodejs"; // ensure Node runtime for DB/bcrypt
