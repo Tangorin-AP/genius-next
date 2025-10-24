@@ -116,6 +116,13 @@ body {
   flex-wrap: wrap;
 }
 
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .page-header__titles {
   display: flex;
   flex-direction: column;

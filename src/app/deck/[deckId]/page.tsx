@@ -11,6 +11,7 @@ import { renameDeck } from '@/app/actions';
 import { hasDatabaseUrl } from '@/lib/env';
 import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
 import ThemeToggle from '@/components/ThemeToggle';
+import LogoutButton from '@/components/LogoutButton';
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 
@@ -29,7 +30,10 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
             <Link href="/" className="back-link">← Dashboard</Link>
             <h1 className="page-title">Pack</h1>
           </div>
-          <ThemeToggle />
+          <div className="deck-header__actions">
+            <ThemeToggle />
+            <LogoutButton />
+          </div>
         </header>
         <section className="pack-grid">
           <MissingDatabaseNotice />
@@ -79,6 +83,7 @@ export default async function DeckPage({ params }: { params: { deckId: string }}
             Delete pack
           </DeleteDeckForm>
           <ThemeToggle className="deck-header__theme-toggle" />
+          <LogoutButton />
         </div>
       </header>
       <DeckControls stats={{pairs: deck.pairs.length}} />

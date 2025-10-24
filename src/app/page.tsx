@@ -2,6 +2,7 @@
 import { prisma, prismaReady } from '@/lib/prisma';
 import { createDeck } from '@/app/actions';
 import ThemeToggle from '@/components/ThemeToggle';
+import LogoutButton from '@/components/LogoutButton';
 import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
 import { hasDatabaseUrl } from '@/lib/env';
 import DeckCardManage from '@/components/DeckCardManage';
@@ -23,7 +24,10 @@ export default async function Home() {
             <h1 className="page-title">Dashboard</h1>
             <p className="page-subtitle">Your career paths</p>
           </div>
-          <ThemeToggle />
+          <div className="page-header__actions">
+            <ThemeToggle />
+            <LogoutButton />
+          </div>
         </header>
         <section className="pack-grid">
           <MissingDatabaseNotice />
@@ -46,7 +50,10 @@ export default async function Home() {
           <h1 className="page-title">Dashboard</h1>
           <p className="page-subtitle">Your career paths</p>
         </div>
-        <ThemeToggle />
+        <div className="page-header__actions">
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
       </header>
       <section className="pack-grid">
         <form action={createDeck} className="deck-card deck-card--create">

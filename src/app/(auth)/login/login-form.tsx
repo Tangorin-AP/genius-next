@@ -16,8 +16,8 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  // default to /study if no valid callbackUrl provided
-  const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl')) ?? '/study';
+  // default to dashboard if no valid callbackUrl provided
+  const callbackUrl = sanitizeCallbackUrl(searchParams.get('callbackUrl')) ?? '/';
   const urlError = searchParams.get('error'); // Auth.js sets ?error=CredentialsSignin on failed login
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -38,7 +38,7 @@ export default function LoginForm() {
   await signIn("credentials", {
   email,
   password,
-  callbackUrl: callbackUrl ?? "/study",
+  callbackUrl: callbackUrl ?? "/",
 });
 // no redirect:false, no manual window.location/router calls
 
