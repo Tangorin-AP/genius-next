@@ -37,12 +37,44 @@ function deriveFallbackAuthSecret(): string {
     return result === '' ? null : result;
   };
 
+  const normalizeDeploymentIdentifier = (
+    value: string | undefined | null,
+  ): string | null => {
+    const candidate = trimmed(value);
+    if (!candidate) return null;
+
+    const valueToParse = candidate.includes('://') ? candidate : `https://${candidate}`;
+    try {
+      const url = new URL(valueToParse);
+      const host = url.hostname.toLowerCase();
+      const port = url.port ? `:${url.port}` : '';
+
+      let pathname = url.pathname;
+      while (pathname.length > 1 && pathname.endsWith('/')) {
+        pathname = pathname.slice(0, -1);
+      }
+      if (pathname === '/') {
+        pathname = '';
+      }
+
+      let normalized = `${host}${port}`;
+      if (pathname) normalized += pathname;
+      if (url.search) normalized += url.search;
+      if (url.hash) normalized += url.hash;
+
+      return normalized;
+    } catch (_error) {
+      // If parsing fails, fall back to the trimmed value so we still have a stable identifier.
+      return candidate;
+    }
+  };
+
   const projectIdentifier =
     trimmed(process.env.AUTH_SECRET_SEED) ??
     trimmed(process.env.VERCEL_PROJECT_ID) ??
-    trimmed(process.env.NEXT_PUBLIC_VERCEL_URL) ??
-    trimmed(process.env.NEXTAUTH_URL) ??
-    trimmed(process.env.VERCEL_URL) ??
+    normalizeDeploymentIdentifier(process.env.NEXT_PUBLIC_VERCEL_URL) ??
+    normalizeDeploymentIdentifier(process.env.NEXTAUTH_URL) ??
+    normalizeDeploymentIdentifier(process.env.VERCEL_URL) ??
     'genius-next';
 
   const environmentIdentifier =
