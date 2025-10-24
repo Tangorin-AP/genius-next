@@ -90,27 +90,3 @@ const authConfig: NextAuthConfig = {
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
 export const { GET, POST } = handlers;
-
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import authConfig from "./auth.config"; // if you split providers out
-
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  ...authConfig,
-  // Good in proxies like Vercel; or set AUTH_TRUST_HOST=true in env:
-  trustHost: true,
-  session: { strategy: "jwt" },
-
-  callbacks: {
-    async jwt({ token, user }) {
-      // Persist user id in the token (first sign-in only)
-      if (user) token.userId = (user as any).id;
-      return token;
-    },
-    async session({ session, token }) {
-      // Make it available to your app
-      if (session.user && token.userId) (session.user as any).id = token.userId as string;
-      return session;
-    },
-  },
-});
