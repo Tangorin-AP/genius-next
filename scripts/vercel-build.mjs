@@ -1,62 +1,24 @@
-import { spawn } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+// scripts/vercel-build.mjs
+// Minimal Vercel build runner for Next.js + Prisma (Neon Postgres).
+// No dependency on scripts/sync-prisma-provider.mjs.
 
-function run(command, args, { cwd = PROJECT_ROOT } = {}) {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, {
-      cwd,
-      stdio: 'inherit',
-      env: process.env,
-      shell: false,
-    });
+import { execSync } from "node:child_process";
 
-    child.on('close', (code, signal) => {
-      resolve({
-        code,
-        signal,
-        ok: code === 0 && signal === null,
-      });
-    });
-  });
+const run = (cmd) => {
+  console.log(`\n$ ${cmd}\n`);
+  execSync(cmd, { stdio: "inherit" });
+};
+
+const env = process.env.VERCEL_ENV || process.env.NODE_ENV || "development";
+const isProd = env === "production";
+
+if (isProd) {
+  console.log("Vercel build: production → running Prisma migrate deploy.");
+  run("npx prisma migrate deploy --schema=./prisma/schema.prisma");
+} else {
+  console.log(`Vercel build: ${env} → skipping 'prisma migrate deploy'.`);
 }
 
-async function main() {
-  const syncScript = path.join(__dirname, 'sync-prisma-provider.mjs');
-  const sync = await run(process.execPath, [syncScript]);
-  if (!sync.ok) {
-    process.exit(sync.code ?? 1);
-  }
-
-  const hasDatabaseUrl = typeof process.env.DATABASE_URL === 'string' && process.env.DATABASE_URL.trim() !== '';
-  if (hasDatabaseUrl) {
-    const migrate = await run('npx', [
-      'prisma',
-      'migrate',
-      'deploy',
-      '--schema=./prisma/schema.prisma',
-    ]);
-
-    if (!migrate.ok) {
-      console.error('❌ Prisma migrate deploy failed; aborting build.');
-      console.error('   Ensure `npx prisma migrate deploy --schema=./prisma/schema.prisma` succeeds before building.');
-      process.exit(migrate.code ?? 1);
-    }
-  } else {
-    console.log('DATABASE_URL not set; skipping Prisma migrate deploy.');
-  }
-
-  const build = await run('npx', ['next', 'build']);
-  if (!build.ok) {
-    process.exit(build.code ?? 1);
-  }
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+run("npx prisma generate");
+run("next build");
