@@ -8,6 +8,8 @@ const AUTH_ROUTES = ['/login', '/register'];
 const PUBLIC_ROUTES = new Set([...AUTH_ROUTES, '/api/health']);
 
 export default async function middleware(req: NextRequest) {
+  const { secret } = ensureAuthSecretForRuntime();
+
   const { pathname, search } = req.nextUrl;
 
   if (pathname.startsWith('/_next/') || pathname.startsWith('/api/auth') || pathname.startsWith('/favicon.ico')) {
@@ -19,8 +21,6 @@ export default async function middleware(req: NextRequest) {
 
   const isPublic = PUBLIC_ROUTES.has(pathname);
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
-
-  const { secret } = ensureAuthSecretForRuntime();
 
   let token = null;
   try {

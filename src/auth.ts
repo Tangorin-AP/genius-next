@@ -5,10 +5,14 @@ import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 
 import { prisma, prismaReady } from '@/lib/prisma';
+import { ensureAuthSecretForRuntime } from '@/lib/env';
+
+const { secret: authSecret } = ensureAuthSecretForRuntime();
 
 const authConfig: NextAuthConfig = {
   debug: process.env.NODE_ENV === 'development',
   trustHost: true,
+  secret: authSecret,
   session: { strategy: 'jwt' },
   callbacks: {
     async jwt({

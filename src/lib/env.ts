@@ -31,20 +31,26 @@ function mix(value: string, seed: number): number {
 }
 
 function deriveFallbackAuthSecret(): string {
-  const seeds = [
-    process.env.AUTH_SECRET_SEED,
-    process.env.DATABASE_URL,
-    process.env.VERCEL_PROJECT_ID,
-    process.env.VERCEL_ENV,
-    process.env.VERCEL_URL,
-    process.env.NEXT_PUBLIC_VERCEL_URL,
-    process.env.NEXTAUTH_URL,
-  ].filter((value): value is string => typeof value === 'string' && value.trim() !== '');
+  const trimmed = (value: string | undefined | null): string | null => {
+    if (typeof value !== 'string') return null;
+    const result = value.trim();
+    return result === '' ? null : result;
+  };
 
-  const base =
-    seeds.length > 0
-      ? seeds.join('|')
-      : `genius-next|${process.env.NODE_ENV ?? 'production'}|${new Date('2024-01-01').toISOString()}`;
+  const projectIdentifier =
+    trimmed(process.env.AUTH_SECRET_SEED) ??
+    trimmed(process.env.VERCEL_PROJECT_ID) ??
+    trimmed(process.env.NEXT_PUBLIC_VERCEL_URL) ??
+    trimmed(process.env.NEXTAUTH_URL) ??
+    trimmed(process.env.VERCEL_URL) ??
+    'genius-next';
+
+  const environmentIdentifier =
+    trimmed(process.env.VERCEL_ENV) ??
+    trimmed(process.env.NODE_ENV) ??
+    'production';
+
+  const base = `${projectIdentifier}|${environmentIdentifier}|${new Date('2024-01-01').toISOString()}`;
 
   const parts: string[] = [];
   let hashA = mix(base, 0x811c9dc5);
