@@ -10,6 +10,7 @@ import { ensureAuthSecretForRuntime } from '@/lib/env';
 const { secret: authSecret } = ensureAuthSecretForRuntime();
 
 export const authConfig: NextAuthConfig = {
+debug: true, // remove after you confirm it's fixed
   trustHost: true,
   secret: authSecret,
   session: { strategy: 'jwt' },
@@ -90,4 +91,3 @@ export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
 export const { GET, POST } = handlers;
 
-debug: true, // remove after you confirm it's fixed
