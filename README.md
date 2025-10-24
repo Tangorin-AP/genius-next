@@ -55,7 +55,7 @@ Now open http://localhost:3000
    - `AUTH_SECRET=<secure-random-string>` (or `NEXTAUTH_SECRET=...`). Generate one with `openssl rand -hex 32` and reuse the same value across redeploys so session cookies remain valid.
    - Optional but recommended: `DATABASE_PROVIDER=postgresql`
    - During install the build will run `scripts/sync-prisma-provider.mjs`, which rewrites `prisma/schema.prisma` so Prisma uses the matching datasource provider. If `DATABASE_PROVIDER` is not set, the script will infer the correct provider from `DATABASE_URL` (e.g. Postgres URLs automatically flip the schema to `postgresql`).
-   - If neither `AUTH_SECRET` nor `NEXTAUTH_SECRET` is provided, the app derives a fallback using normalized deployment identifiers (`AUTH_SECRET_SEED`, `VERCEL_PROJECT_ID`, `NEXT_PUBLIC_VERCEL_URL`, `NEXTAUTH_URL`, `VERCEL_URL`). URL-like values are canonicalized (schemes removed, hosts lowercased, trailing slashes trimmed) so Node and Edge runtimes agree on the same secret for a given deployment.
+   - If neither `AUTH_SECRET` nor `NEXTAUTH_SECRET` is provided, the app derives a fallback using normalized deployment identifiers (`AUTH_SECRET_SEED`, `NEXT_PUBLIC_VERCEL_URL`, `NEXTAUTH_URL`). URL-like values are canonicalized (schemes removed, hosts lowercased, trailing slashes trimmed) so Node and Edge runtimes agree on the same secret for a given deployment. Set `AUTH_SECRET_SEED` to a stable value if you need deterministic secrets across redeploys without setting the full `AUTH_SECRET`.
 3. Add a build hook or first deploy; then run migrations (from your local machine):
    ```bash
    npx prisma migrate deploy --schema=./prisma/schema.prisma

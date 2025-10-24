@@ -11,6 +11,7 @@ async function deriveFallbackSecret(overrides: Record<string, string | undefined
     'NEXT_PUBLIC_VERCEL_URL',
     'NEXTAUTH_URL',
     'VERCEL_URL',
+    'VERCEL_ENV',
     'VERCEL_PROJECT_ID',
   ]) {
     delete envCopy[key];
@@ -37,11 +38,14 @@ async function deriveFallbackSecret(overrides: Record<string, string | undefined
   }
 }
 
-test('derives the same fallback secret for normalized NEXTAUTH_URL and VERCEL_URL', async () => {
+test('prefers shared deployment identifiers when both NEXTAUTH_URL and VERCEL_URL are present', async () => {
+  const bothSecret = await deriveFallbackSecret({
+    NEXTAUTH_URL: 'https://example.com',
+    VERCEL_URL: 'example.com/',
+  });
   const nextAuthSecret = await deriveFallbackSecret({ NEXTAUTH_URL: 'https://example.com' });
-  const vercelSecret = await deriveFallbackSecret({ VERCEL_URL: 'example.com/' });
 
-  expect(nextAuthSecret).toBe(vercelSecret);
+  expect(bothSecret).toBe(nextAuthSecret);
 });
 
 test('normalizes case, scheme, and trailing slash differences for deployment URLs', async () => {
@@ -60,4 +64,11 @@ test('ignores VERCEL_PROJECT_ID so the fallback secret matches across runtimes',
   const withoutProjectId = await deriveFallbackSecret({});
 
   expect(withProjectId).toBe(withoutProjectId);
+});
+
+test('ignores VERCEL_URL when it is only present in the node runtime', async () => {
+  const nodeSecret = await deriveFallbackSecret({ VERCEL_URL: 'example.vercel.app' });
+  const edgeSecret = await deriveFallbackSecret({});
+
+  expect(nodeSecret).toBe(edgeSecret);
 });
