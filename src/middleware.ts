@@ -23,11 +23,16 @@ export default async function middleware(req: NextRequest) {
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
   let token = null;
-  try {
-    token = await getToken({ req, secret });
-  } catch (error) {
-    console.error('Failed to read authentication session token.', error);
-  }
+try {
+  // default read
+  token = await getToken({ req, secret });
+  // try the secure cookie name used in production
+  if (!token) token = await getToken({ req, secret, cookieName: "__Secure-authjs.session-token" as any });
+  // try the non-prefixed name used locally
+  if (!token) token = await getToken({ req, secret, cookieName: "authjs.session-token" as any });
+} catch (error) {
+  console.error("Failed to read authentication session token.", error);
+}
 
   const tokenId = typeof token?.id === 'string' ? token.id : typeof token?.sub === 'string' ? token.sub : undefined;
   const isAuthenticated = Boolean(tokenId);
