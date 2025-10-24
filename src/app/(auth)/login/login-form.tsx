@@ -35,12 +35,12 @@ export default function LoginForm() {
       return;
     }
 
-    // Let NextAuth set the cookie and perform the redirect server-side
-    await signIn('credentials', {
-      email,
-      password,
-      callbackUrl, // will be /study unless a safe internal path is provided
-    });
+  await signIn("credentials", {
+  email,
+  password,
+  callbackUrl: callbackUrl ?? "/study",
+});
+// no redirect:false, no manual window.location/router calls
 
     // No manual window.location / router redirects here
   }
