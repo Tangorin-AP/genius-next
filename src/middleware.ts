@@ -22,14 +22,13 @@ export default async function middleware(req: NextRequest) {
   const isPublic = PUBLIC_ROUTES.has(pathname);
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
-  let token = null;
-try {
-  // default read
-  token = await getToken({ req, secret });
-  // try the secure cookie name used in production
-  if (!token) token = await getToken({ req, secret, cookieName: "__Secure-authjs.session-token" as any });
-  // try the non-prefixed name used locally
-  if (!token) token = await getToken({ req, secret, cookieName: "authjs.session-token" as any });
+  const secret = process.env.AUTH_SECRET!; // or your ensureAuthSecretForRuntime()
+
+let token = await getToken({ req, secret }).catch(() => null);
+if (!token) token = await getToken({ req, secret, cookieName: "__Secure-authjs.session-token" as any });
+if (!token) token = await getToken({ req, secret, cookieName: "authjs.session-token" as any });
+
+// ...your existing “if (!token) redirect to /login?callbackUrl=…” logic
 } catch (error) {
   console.error("Failed to read authentication session token.", error);
 }
