@@ -33,21 +33,13 @@ export default function LoginForm() {
       return;
     }
 
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-
-    setPending(false);
-
-    if (result?.error) {
-      setError('Invalid email or password');
-      return;
-    }
-
-    window.location.href = callbackUrl ?? '/';
-  }
+// Let NextAuth set the cookie and perform the redirect server-side:
+await signIn('credentials', {
+  email,
+  password,
+  // Prefer the caller's callbackUrl if it's a safe internal path, else go to /study
+  callbackUrl: callbackUrl ?? '/study',
+});
 
   return (
     <div className="auth-card">
