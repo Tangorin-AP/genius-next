@@ -1,3 +1,5 @@
 // src/app/api/auth/[...nextauth]/route.ts
-export { GET, POST } from "@/auth";
-export const runtime = "nodejs"; // ensure Node runtime for DB/bcrypt
+import { handlers } from "../../../../auth";
+export const runtime = "nodejs";
+export const GET = handlers.GET;
+export const POST = handlers.POST;
