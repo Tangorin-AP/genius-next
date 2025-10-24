@@ -73,13 +73,9 @@ function deriveFallbackAuthSecret(): string {
     trimmed(process.env.AUTH_SECRET_SEED) ??
     normalizeDeploymentIdentifier(process.env.NEXT_PUBLIC_VERCEL_URL) ??
     normalizeDeploymentIdentifier(process.env.NEXTAUTH_URL) ??
-    normalizeDeploymentIdentifier(process.env.VERCEL_URL) ??
     'genius-next';
 
-  const environmentIdentifier =
-    trimmed(process.env.VERCEL_ENV) ??
-    trimmed(process.env.NODE_ENV) ??
-    'production';
+  const environmentIdentifier = trimmed(process.env.NODE_ENV) ?? 'production';
 
   const base = `${projectIdentifier}|${environmentIdentifier}|${new Date('2024-01-01').toISOString()}`;
 
