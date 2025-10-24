@@ -34,12 +34,12 @@ export default function LoginForm() {
     }
 
 // Let NextAuth set the cookie and perform the redirect server-side:
-await signIn('credentials', {
+await signIn("credentials", {
   email,
   password,
-  // Prefer the caller's callbackUrl if it's a safe internal path, else go to /study
-  callbackUrl: callbackUrl ?? '/study',
+  callbackUrl: callbackUrl ?? "/study",
 });
+// No `redirect: false`, no manual window.location
 
   return (
     <div className="auth-card">
