@@ -90,3 +90,5 @@ export const authConfig: NextAuthConfig = {
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
 export const { GET, POST } = handlers;
+
+debug: true, // remove after you confirm it's fixed
