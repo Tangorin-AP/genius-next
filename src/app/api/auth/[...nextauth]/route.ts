@@ -1,7 +1,13 @@
+import type { NextRequest } from 'next/server';
+
+import { handlers } from '@/auth';
+
 export const runtime = 'nodejs';
 
-export { GET, POST } from '@/auth';
+export function GET(request: NextRequest) {
+  return handlers.GET(request);
+}
 
-// Wire the handlers exported by src/auth.ts (v5 style)
-export { GET, POST } from "@/auth";
-export const runtime = "nodejs"; // ensure Node runtime (not Edge)
+export function POST(request: NextRequest) {
+  return handlers.POST(request);
+}
