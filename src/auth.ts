@@ -9,7 +9,7 @@ import { ensureAuthSecretForRuntime } from '@/lib/env';
 
 const { secret: authSecret } = ensureAuthSecretForRuntime();
 
-const authConfig: NextAuthConfig = {
+export const authConfig: NextAuthConfig = {
   debug: process.env.NODE_ENV === 'development',
   trustHost: true,
   secret: authSecret,
