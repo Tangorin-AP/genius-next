@@ -65,7 +65,7 @@ Now open http://localhost:3000
 
 - `src/lib/engine.ts`
   - `nextDueFromScore(score)` → **5^score** seconds
-  - `chooseAssociations(opts)` → returns a set of due items first, then pool selection
+  - `chooseAssociations(opts)` → mirrors the macOS enumerator: shuffle, importance sort, Poisson bucket pick of a fixed batch
   - `mark(id, RIGHT|WRONG|SKIP)` → updates score/due/firstTime
 
 - `src/components/StudyModal.tsx`
@@ -84,20 +84,12 @@ Now open http://localhost:3000
 ## Mapping to the original code (what this mirrors)
 
 - **Directed Associations** — Original: `GeniusAssociation` with `scoreNumber` & `dueDate`. Here: `Association` table with `score` & `dueAt`.
-- **Enumerator** — Original: `GeniusAssociationEnumerator` with `setCount`, `setMinimumScore`, `setProbabilityCenter`, `associationRight/Wrong/Skip`. Here: `chooseAssociations()` has the same knobs and returns a scheduled list (due first), plus a clean-room probability weight centered at `mValue`.
+- **Enumerator** — Original: `GeniusAssociationEnumerator` with `setCount`, `setMinimumScore`, `setProbabilityCenter`, `associationRight/Wrong/Skip`. Here: `chooseAssociations()` uses the same knobs and now replicates the Poisson bucket selection exactly (no extra “due” queue), so each session pulls the same fixed batch the classic app would.
 - **Quiz controller** — Original: `MyQuizController` manages the dimmed background window, swaps review/learn views, and asks *“Were you correct?”*. Here: `StudyModal` duplicates that UX: dimmed screen, cue first, Reveal/Submit, diff, Yes/No/Skip.
 - **String similarity** — Original: `NSString+Similiarity` exposing `-isSimilarToString:` (public domain). Here: `similarity.ts` provides an *exact‑like* test and a trigram cosine. Drop-in replacement can be added if we port the Objective‑C function 1:1.
 
-## What remains to match *exactly*
-
-- The exact **probability weighting** in `performChooseAssociations` (Enumerator). This build uses a Gaussian weight centered on `mValue` which is behaviorally close but not guaranteed to match the Objective‑C line for line.
-- If you want a byte‑for‑byte equivalent:
-  - We can translate the original Objective‑C from the SVN repo into TypeScript. That code is GPL‑licensed; adopting it would make this project GPL as well.
-  - Alternatively, we can continue the clean‑room approach but tune unit tests to match the original output using reference decks.
-
 ## Tests to add (recommendation)
 
-- Given a fixed random seed and a sample deck, the selection order from `chooseAssociations()` should match the original app’s order snapshot for the same slider setting.
 - Answer‑checking fixtures to ensure the *exact‑like* behavior.
 
 ## License

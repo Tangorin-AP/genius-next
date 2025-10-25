@@ -8,7 +8,6 @@ const RANDOM_RANGE = 0x7fffffff;
 const RANDOM_STATE_SIZE = 31;
 const RANDOM_SEPARATION = 3;
 const RANDOM_WARMUP = RANDOM_STATE_SIZE * 10;
-const BUCKET_COUNT = 11;
 
 export function nextDueFromScore(score: number): Date {
   const safeScore = Math.max(0, score);
@@ -185,16 +184,6 @@ export function setGeniusRandomSeed(seed: number | null): void {
   sharedEnvKey = typeof process !== 'undefined' ? process.env.GENIUS_RANDOM_SEED ?? null : null;
 }
 
-function bucketIndexForScore(score: number): number {
-  if (!Number.isFinite(score) || score <= 0) {
-    return 0;
-  }
-  const scaled = Math.floor(score * 10);
-  if (scaled < 0) return 0;
-  if (scaled >= BUCKET_COUNT) return BUCKET_COUNT - 1;
-  return scaled;
-}
-
 function chooseByScore(
   associations: AssociationRecord[],
   count: number,
@@ -216,15 +205,30 @@ function chooseByScore(
     return ordered;
   }
 
-  const buckets: AssociationRecord[][] = Array.from({ length: BUCKET_COUNT }, () => []);
+  const scored = ordered.map((assoc) => ({ assoc, score: scoreValue(assoc) }));
+  if (scored.length === 0) return [];
 
-  for (const assoc of ordered) {
-    const score = scoreValue(assoc);
-    const bucketIndex = bucketIndexForScore(score);
-    buckets[bucketIndex].push(assoc);
+  let minScore = scored[0].score;
+  let maxScore = scored[0].score;
+  for (const entry of scored) {
+    if (entry.score < minScore) minScore = entry.score;
+    if (entry.score > maxScore) maxScore = entry.score;
+  }
+
+  const bucketCount = Math.max(1, Math.trunc(maxScore - minScore) + 1);
+  const buckets: AssociationRecord[][] = Array.from({ length: bucketCount }, () => []);
+
+  for (const entry of scored) {
+    const rawIndex = entry.score - minScore;
+    const bucketIndex = Math.max(0, Math.min(bucketCount - 1, Math.floor(rawIndex)));
+    buckets[bucketIndex].push(entry.assoc);
   }
 
   const weights = buckets.map((_, idx) => poissonValue(idx, mValue));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  const normalizedWeights =
+    totalWeight > 0 ? weights.map((value) => value / totalWeight) : buckets.map(() => 1 / bucketCount);
+
   const desired = Math.min(count, ordered.length);
   const selected: AssociationRecord[] = [];
 
@@ -232,7 +236,8 @@ function chooseByScore(
     let x = rng.nextFloat();
     let chosen: AssociationRecord | null = null;
     for (let idx = 0; idx < buckets.length; idx += 1) {
-      const weight = weights[idx];
+      const weight = normalizedWeights[idx];
+      if (weight <= 0) continue;
       if (x < weight) {
         const bucket = buckets[idx];
         if (bucket.length > 0) {
@@ -242,22 +247,17 @@ function chooseByScore(
       }
       x -= weight;
     }
+
     if (chosen) {
       selected.push(chosen);
       continue;
     }
 
-    let hasRemaining = false;
-    for (const bucket of buckets) {
-      if (bucket.length > 0) {
-        hasRemaining = true;
-        break;
-      }
-    }
-
-    if (!hasRemaining) {
+    const fallbackIndex = buckets.findIndex((bucket) => bucket.length > 0);
+    if (fallbackIndex === -1) {
       break;
     }
+    selected.push(buckets[fallbackIndex].shift()!);
   }
 
   return selected;
@@ -273,53 +273,28 @@ export async function chooseAssociations({ deckId, userId, count, minimumScore =
     include: { pair: true },
   });
 
-  const now = new Date();
-  const dueQueue: { assoc: AssociationRecord; dueDate: Date | null }[] = [];
-  const unscheduled: AssociationRecord[] = [];
-
+  const eligible: AssociationRecord[] = [];
   for (const assoc of associations) {
-    const pair = assoc.pair as { importance?: number } | null;
-    const importance = typeof pair?.importance === 'number' ? pair.importance : 0;
+    const importance = importanceOf(assoc);
     if (importance === -1) continue;
 
     const score = scoreValue(assoc);
     if (score < minimumScore) continue;
 
-    const dueDate = assoc.dueAt ? new Date(assoc.dueAt) : null;
     const clone: AssociationRecord = {
       ...assoc,
       score,
-      dueAt: dueDate,
+      dueAt: assoc.dueAt ? new Date(assoc.dueAt) : null,
     };
-
-    if (dueDate) {
-      const activeDueDate = dueDate.getTime() > now.getTime() ? dueDate : null;
-      dueQueue.push({ assoc: clone, dueDate: activeDueDate });
-      if (!activeDueDate) {
-        clone.dueAt = null;
-        unscheduled.push(clone);
-      }
-    } else {
-      unscheduled.push(clone);
-    }
+    eligible.push(clone);
   }
 
-  dueQueue.sort((a, b) => {
-    const aTime = a.dueDate ? a.dueDate.getTime() : Number.NEGATIVE_INFINITY;
-    const bTime = b.dueDate ? b.dueDate.getTime() : Number.NEGATIVE_INFINITY;
-    return aTime - bTime;
-  });
-
-  const dueIds = new Set(dueQueue.map(({ assoc }) => assoc.id));
-  const poolCandidates = unscheduled.filter((assoc) => !dueIds.has(assoc.id));
-  const available = poolCandidates.length;
+  const available = eligible.length;
   const requested = Math.min(Math.max(0, count), available);
-  const sampled = chooseByScore(poolCandidates, requested, mValue);
-
-  const dueViews = dueQueue.map(({ assoc, dueDate }) => toAssocView({ ...assoc, dueAt: dueDate ?? null }));
+  const sampled = chooseByScore(eligible, requested, mValue);
   const poolViews = sampled.map(toAssocView);
 
-  return { due: dueViews, pool: poolViews, available, requested };
+  return { due: [], pool: poolViews, available, requested };
 }
 
 function toAssocView(a: AssociationRecord): AssocView {

@@ -17,37 +17,64 @@ import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+function formatError(error: unknown): string | undefined {
+  if (!error) return undefined;
+  if (error instanceof Error && typeof error.message === 'string') {
+    return error.message;
+  }
+  if (typeof error === 'string') return error;
+  return undefined;
+}
+
+function renderDeckDatabaseNotice(kind: 'missing' | 'unreachable', error?: unknown) {
+  const hint = IS_PRODUCTION ? undefined : formatError(error);
+  return (
+    <main className="page page--deck">
+      <header className="page-header deck-header">
+        <div className="deck-header__primary">
+          <Link href="/" className="back-link">← Dashboard</Link>
+          <h1 className="page-title">Pack</h1>
+        </div>
+        <div className="deck-header__actions">
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
+      </header>
+      <section className="pack-grid">
+        <MissingDatabaseNotice kind={kind} hint={hint} />
+      </section>
+    </main>
+  );
+}
+
 export default async function DeckPage({ params }: { params: { deckId: string }}) {
   const session = await auth();
   if (!session?.user?.id) {
     redirect('/login');
   }
   if (!hasDatabaseUrl()) {
-    return (
-      <main className="page page--deck">
-        <header className="page-header deck-header">
-          <div className="deck-header__primary">
-            <Link href="/" className="back-link">← Dashboard</Link>
-            <h1 className="page-title">Pack</h1>
-          </div>
-          <div className="deck-header__actions">
-            <ThemeToggle />
-            <LogoutButton />
-          </div>
-        </header>
-        <section className="pack-grid">
-          <MissingDatabaseNotice />
-        </section>
-      </main>
-    );
+    return renderDeckDatabaseNotice('missing');
   }
 
-  await prismaReady();
+  try {
+    await prismaReady();
+  } catch (error) {
+    console.error('Prisma failed to initialize for deck view', error);
+    return renderDeckDatabaseNotice('unreachable', error);
+  }
 
-  const deck = await prisma.deck.findFirst({
-    where: { id: params.deckId, userId: session.user.id },
-    include: { pairs: { include: { associations: true } } },
-  });
+  let deck;
+  try {
+    deck = await prisma.deck.findFirst({
+      where: { id: params.deckId, userId: session.user.id },
+      include: { pairs: { include: { associations: true } } },
+    });
+  } catch (error) {
+    console.error('Failed to load deck data', error);
+    return renderDeckDatabaseNotice('unreachable', error);
+  }
   if (!deck) return <div>Deck not found</div>;
 
   const rows = deck.pairs.map((p) => {

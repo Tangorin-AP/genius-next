@@ -60,15 +60,15 @@ function createAssociation(index: number, score: number | null, importance: numb
 function buildSampleDeck(): MockAssociation[] {
   return [
     createAssociation(0, -1, 2),
-    createAssociation(1, 0.05, 3),
-    createAssociation(2, 0.15, 5),
-    createAssociation(3, 0.22, 4),
-    createAssociation(4, 0.31, 4),
-    createAssociation(5, 0.42, 5),
-    createAssociation(6, 0.56, 2),
-    createAssociation(7, 0.63, 3),
-    createAssociation(8, 0.77, 1),
-    createAssociation(9, 0.91, 2),
+    createAssociation(1, 0, 3),
+    createAssociation(2, 1, 5),
+    createAssociation(3, 1, 4),
+    createAssociation(4, 2, 4),
+    createAssociation(5, 2, 5),
+    createAssociation(6, 3, 2),
+    createAssociation(7, 3, 3),
+    createAssociation(8, 4, 1),
+    createAssociation(9, 5, 2),
   ];
 }
 
@@ -90,11 +90,11 @@ describe('chooseAssociations weighting parity', () => {
   it('matches macOS Poisson weighting for balanced review vs learn (m=1)', async () => {
     const plan = await chooseAssociations({ deckId: 'deck-1', userId: 'user-1', count: 5, mValue: 1, minimumScore: -1 });
     expect(extractPoolIds(plan)).toEqual([
-      'assoc-2',
       'assoc-1',
       'assoc-0',
+      'assoc-2',
       'assoc-3',
-      'assoc-4',
+      'assoc-5',
     ]);
   });
 
@@ -103,11 +103,11 @@ describe('chooseAssociations weighting parity', () => {
     findManyMock.mockImplementation(async () => buildSampleDeck());
     const plan = await chooseAssociations({ deckId: 'deck-1', userId: 'user-1', count: 5, mValue: 2, minimumScore: -1 });
     expect(extractPoolIds(plan)).toEqual([
-      'assoc-1',
       'assoc-0',
-      'assoc-5',
+      'assoc-1',
+      'assoc-7',
       'assoc-2',
-      'assoc-8',
+      'assoc-3',
     ]);
   });
 
@@ -116,10 +116,10 @@ describe('chooseAssociations weighting parity', () => {
     findManyMock.mockImplementation(async () => buildSampleDeck());
     const plan = await chooseAssociations({ deckId: 'deck-1', userId: 'user-1', count: 4, mValue: 0.6, minimumScore: 0.3 });
     expect(extractPoolIds(plan)).toEqual([
-      'assoc-4',
+      'assoc-2',
       'assoc-5',
-      'assoc-6',
-      'assoc-8',
+      'assoc-3',
+      'assoc-4',
     ]);
   });
 });

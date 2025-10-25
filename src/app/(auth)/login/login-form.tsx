@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { FormEvent, useState } from 'react';
 
@@ -13,6 +13,7 @@ function sanitizeCallbackUrl(value: string | null): string | undefined {
 
 export default function LoginForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -35,14 +36,30 @@ export default function LoginForm() {
       return;
     }
 
-  await signIn("credentials", {
-  email,
-  password,
-  callbackUrl: callbackUrl ?? "/",
-});
-// no redirect:false, no manual window.location/router calls
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: callbackUrl ?? '/',
+      });
 
-    // No manual window.location / router redirects here
+      if (result?.error) {
+        setError('Invalid email or password');
+        setPending(false);
+        return;
+      }
+
+      const destination = typeof result?.url === 'string' && result.url.trim() ? result.url : callbackUrl ?? '/';
+      setPending(false);
+      router.push(destination);
+      // Ensure server components see the new session
+      router.refresh();
+    } catch (err) {
+      console.error('Login failed', err);
+      setError('Unable to sign in. Please try again.');
+      setPending(false);
+    }
   }
 
   return (

@@ -1,10 +1,62 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 
 const PROJECT_ROOT = process.cwd();
 const SCHEMA_PATH = path.join(PROJECT_ROOT, 'prisma', 'schema.prisma');
 const DEFAULT_PROVIDER = 'sqlite';
 const ALLOWED_PROVIDERS = new Set(['sqlite', 'postgresql']);
+
+const ENV_FILES = [
+  '.env.local',
+  `.env.${process.env.NODE_ENV ?? 'development'}`,
+  '.env',
+  path.join('prisma', '.env'),
+];
+
+function parseEnv(content) {
+  const entries = {};
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    if (!key) continue;
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    entries[key] = value;
+  }
+  return entries;
+}
+
+function loadEnvFiles() {
+  for (const relativePath of ENV_FILES) {
+    if (!relativePath) continue;
+    const absolutePath = path.join(PROJECT_ROOT, relativePath);
+    if (!fsSync.existsSync(absolutePath)) continue;
+    try {
+      const content = fsSync.readFileSync(absolutePath, 'utf8');
+      const parsed = parseEnv(content);
+      let applied = false;
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof process.env[key] === 'string' && process.env[key] !== '') continue;
+        process.env[key] = value;
+        applied = true;
+      }
+      if (applied) {
+        console.log(`Loaded environment values from ${relativePath}`);
+      }
+    } catch (error) {
+      console.warn(`Could not load ${relativePath}:`, error instanceof Error ? error.message : error);
+    }
+  }
+}
 
 function inferProviderFromUrl() {
   const url = process.env.DATABASE_URL;
@@ -47,6 +99,7 @@ function resolveProvider() {
 }
 
 async function syncProvider() {
+  loadEnvFiles();
   const provider = resolveProvider();
   const schema = await fs.readFile(SCHEMA_PATH, 'utf8');
 
