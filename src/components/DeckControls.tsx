@@ -11,6 +11,15 @@ type SaveState = {
   isRefreshing: boolean;
 };
 
+const MINIMUM_SCORE_PRESETS = [
+  { value: -1, label: 'Include new cards', helper: 'Matches the macOS “Include new cards” option (score ≥ -1).' },
+  { value: 0, label: 'Review only (score ≥ 0)', helper: 'Same as the macOS “Review only” menu item.' },
+  { value: 1, label: 'Score ≥ 1', helper: 'Focus on cards that have passed at least once.' },
+  { value: 2, label: 'Score ≥ 2', helper: 'Stick to long-term cards that are already in rotation.' },
+  { value: 3, label: 'Score ≥ 3', helper: 'Mirror the Genius Mac “Minimum Score 3” preset.' },
+  { value: 4, label: 'Score ≥ 4', helper: 'Equivalent to Genius for concentrating on late-stage reviews.' },
+] as const;
+
 export default function DeckControls({ stats }: { stats: {pairs:number}; }){
   const [q, setQ] = useState('');
   const [slider, setSlider] = useState(0);
@@ -85,6 +94,8 @@ export default function DeckControls({ stats }: { stats: {pairs:number}; }){
 
   const sliderValue = Math.max(0, Math.min(100, slider));
   const derivedM = 2 * (sliderValue / 100);
+  const minimumScorePreset =
+    MINIMUM_SCORE_PRESETS.find((preset) => preset.value === minimumScore) ?? MINIMUM_SCORE_PRESETS[0];
 
   return (
     <>
@@ -140,15 +151,25 @@ export default function DeckControls({ stats }: { stats: {pairs:number}; }){
               <button className="icon" onClick={()=>setOpenSettings(false)} aria-label="Close study settings" type="button">×</button>
             </div>
             <div className="toolbar-popover__content">
+              <div className="match-mode" aria-live="polite">
+                <span className="match-mode__label">Learn ↔ Review slider</span>
+                <span className="match-mode__hint">
+                  Same control as the Genius macOS quiz window. Drag left to bias toward new pairs (m≈0), right to stay
+                  with due reviews (m≈2). Current value: {sliderValue}% (m = {derivedM.toFixed(2)}).
+                </span>
+              </div>
               <label className="match-mode" title="Minimum score to include">
                 <span className="match-mode__label">Minimum score</span>
                 <select value={minimumScore} onChange={e=>setMinimumScore(parseInt(e.currentTarget.value, 10))}>
-                  <option value={-1}>Include new</option>
-                  <option value={0}>Review only</option>
-                  <option value={1}>Score ≥ 1</option>
-                  <option value={2}>Score ≥ 2</option>
+                  {MINIMUM_SCORE_PRESETS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
-                <span className="match-mode__hint">Use 0 for review-only mode. Higher scores focus on long-term items.</span>
+                <span className="match-mode__hint">
+                  Mirrors the macOS Genius “Minimum Score” pop-up: raise it to limit the quiz to cards that have already reached that stage.
+                </span>
               </label>
               <label className="match-mode" title="Choose how your answer is compared">
                 <span className="match-mode__label">Answer check</span>
@@ -171,9 +192,12 @@ export default function DeckControls({ stats }: { stats: {pairs:number}; }){
             <div className="modal-body">
               <div>Total cards: {stats.pairs}</div>
               <div>
-                Study settings: slider = {sliderValue}% (m = {derivedM.toFixed(2)}), minimum score = {minimumScore}, sample size = {UNSCHEDULED_SAMPLE_COUNT}, match = {mode}
+                Study settings: Learn ↔ Review slider at {sliderValue}% (m = {derivedM.toFixed(2)}), minimum score = {minimumScorePreset.label}, sample size = {UNSCHEDULED_SAMPLE_COUNT}, match = {mode}
               </div>
-              <p className="muted">m controls where the scheduler samples scores (lower = newer learning, higher = later review).</p>
+              <p className="muted">
+                Learn/Review slider matches the macOS Genius probability slider (m = {derivedM.toFixed(2)}).{' '}
+                {minimumScorePreset.helper}
+              </p>
             </div>
           </div>
         </div>

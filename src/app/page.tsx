@@ -7,7 +7,7 @@ import MissingDatabaseNotice from '@/components/MissingDatabaseNotice';
 import { hasDatabaseUrl } from '@/lib/env';
 import DeckCardManage from '@/components/DeckCardManage';
 import { auth } from '@/auth';
-import { redirect } from 'next/navigation';
+import AuthLoginView from '@/components/AuthLoginView';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +46,7 @@ function renderDatabaseNotice(kind: 'missing' | 'unreachable', error?: unknown) 
 export default async function Home() {
   const session = await auth();
   if (!session?.user?.id) {
-    redirect('/login');
+    return <AuthLoginView />;
   }
   if (!hasDatabaseUrl()) {
     return renderDatabaseNotice('missing');

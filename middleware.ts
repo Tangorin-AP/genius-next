@@ -1,4 +1,9 @@
-export { auth as middleware } from "@/auth";
+export { auth as middleware } from "./src/auth";
 export const config = {
-  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/deck/:path*",
+    "/api/mark/:path*",
+    "/api/select/:path*",
+    "/api/export/:path*",
+  ],
 };
